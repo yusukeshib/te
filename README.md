@@ -70,10 +70,10 @@ Works with any CLI tool:
 
 ```bash
 # With cargo
-cargo install te
+cargo install te-cli
 
 # From source
-git clone https://github.com/yourusername/te
+git clone https://github.com/yusukeshib/te
 cd te
 cargo build --release
 ```

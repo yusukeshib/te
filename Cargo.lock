@@ -599,7 +599,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "te"
+name = "te-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",

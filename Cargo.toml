@@ -1,7 +1,18 @@
 [package]
-name = "te"
+name = "te-cli"
 version = "0.1.0"
 edition = "2024"
+description = "Interactive TUI wrapper for CLI commands - Your helping hand for command-line interfaces"
+license = "MIT"
+repository = "https://github.com/yusukeshib/te"
+readme = "README.md"
+keywords = ["cli", "tui", "wrapper", "interactive", "terminal"]
+categories = ["command-line-utilities", "command-line-interface"]
+authors = ["Yusuke Shibata"]
+
+[[bin]]
+name = "te"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
