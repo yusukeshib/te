@@ -42,29 +42,10 @@ Beautiful terminal interface built with [ratatui](https://github.com/ratatui-org
 
 ### 🧠 Smart Suggestions
 - **Frequency-based sorting**: Most-used options appear first
-- **Context-aware completions**: Suggests valid values based on your environment
 - **Default values**: Mark commonly used values as defaults
 
-### 📚 History & Presets
-```bash
-# Quick access to command history
-te history
-
-# Save frequently used command patterns
-te save-preset my-ec2-dev
-
-# Reuse saved presets
-te aws ec2 run-instances --preset my-ec2-dev
-```
-
 ### 🔧 Universal Wrapper
-Works with any CLI tool:
-- `aws` - AWS CLI
-- `kubectl` - Kubernetes
-- `docker` - Docker
-- `ffmpeg` - Video processing
-- `git` - Version control
-- Any command-line tool with `--help`
+Works with any CLI tool which output help-like output with `--help`.
 
 ## Installation
 
@@ -93,42 +74,14 @@ te docker run
 te ffmpeg -i
 ```
 
-### Command History
-
-```bash
-# View and reuse previous commands
-te history
-
-# Search history
-te history --search "ec2"
-```
-
-### Presets
-
-```bash
-# Save current configuration as preset
-te save-preset <name>
-
-# Use preset
-te <command> --preset <name>
-
-# List all presets
-te list-presets
-```
-
 ## Configuration
 
 Configuration is stored in `~/.te/`:
 
 ```
-~/.te/
+~/.config/te/
 ├── config.toml           # Global settings
 ├── history.db            # Command execution history
-├── presets/              # Saved command presets
-│   ├── aws-dev.yaml
-│   └── kubectl-prod.yaml
-└── schemas/              # Custom command schemas (optional)
-    └── custom-tool.yaml
 ```
 
 ### Example config.toml
@@ -143,13 +96,6 @@ save_history = true
 
 # Maximum history entries
 max_history = 1000
-
-[ui]
-# Color scheme: "default", "nord", "dracula"
-theme = "default"
-
-# Show preview pane
-show_preview = true
 ```
 
 ## How It Works
@@ -177,15 +123,16 @@ In Japanese, 手 (te) means "hand" - representing:
 
 ## Roadmap
 
-- [x] Basic TUI interface
-- [x] Help parsing
-- [x] Command history
-- [ ] Preset management
-- [ ] Smart suggestions
-- [ ] Context-aware completions
-- [ ] Shell integration (bash, zsh, fish)
-- [ ] Custom schema support
-- [ ] Team preset sharing
+- [ ] Basic TUI interface
+- [ ] Help parsing
+- [ ] Option sort
+- [ ] Command history
+
+### Future plan
+
+- [ ] Default mark
+- [ ] Preset feature
+- [ ] Context feature
 
 ## Contributing
 
