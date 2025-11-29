@@ -1,51 +1,48 @@
 use ratatui::widgets::ListState;
-use crate::help_parser::Argument;
+
+#[derive(Debug, Clone)]
+pub struct Argument {
+    pub flag: String,
+    pub value: Option<String>,
+}
 
 pub struct App {
-    pub command_parts: Vec<String>,
+    pub base_command: Vec<String>,
     pub arguments: Vec<Argument>,
     pub list_state: ListState,
-    pub selected_values: Vec<String>,
     pub preview_command: String,
     pub input_mode: bool,
     pub current_input: String,
 }
 
 impl App {
-    pub fn new(command_parts: Vec<String>, arguments: Vec<Argument>) -> Self {
+    pub fn new(base_command: Vec<String>, arguments: Vec<Argument>) -> Self {
         let mut list_state = ListState::default();
         if !arguments.is_empty() {
             list_state.select(Some(0));
         }
 
-        let selected_values = vec![String::new(); arguments.len()];
-        let preview_command = Self::build_preview(&command_parts, &arguments, &selected_values);
+        let preview_command = Self::build_preview(&base_command, &arguments);
 
         Self {
-            command_parts,
+            base_command,
             arguments,
             list_state,
-            selected_values,
             preview_command,
             input_mode: false,
             current_input: String::new(),
         }
     }
 
-    fn build_preview(
-        command_parts: &[String],
-        arguments: &[Argument],
-        selected_values: &[String],
-    ) -> String {
-        let mut parts = command_parts.to_vec();
+    fn build_preview(base_command: &[String], arguments: &[Argument]) -> String {
+        let mut parts = base_command.to_vec();
 
-        for (i, arg) in arguments.iter().enumerate() {
-            if !selected_values[i].is_empty() {
-                parts.push(arg.name.clone());
-                if !arg.takes_value {
-                    continue;
-                }
-                parts.push(selected_values[i].clone());
+        for arg in arguments.iter() {
+            if !arg.flag.is_empty() {
+                parts.push(arg.flag.clone());
+            }
+            if let Some(value) = &arg.value {
+                parts.push(value.clone());
             }
         }
 
@@ -53,8 +50,7 @@ impl App {
     }
 
     pub fn update_preview(&mut self) {
-        self.preview_command =
-            Self::build_preview(&self.command_parts, &self.arguments, &self.selected_values);
+        self.preview_command = Self::build_preview(&self.base_command, &self.arguments);
     }
 
     pub fn next(&mut self) {
@@ -94,13 +90,21 @@ impl App {
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
             self.input_mode = true;
-            self.current_input = self.selected_values[selected].clone();
+            self.current_input = self.arguments[selected]
+                .value
+                .clone()
+                .unwrap_or_default();
         }
     }
 
     pub fn confirm_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            self.selected_values[selected] = self.current_input.clone();
+            let new_value = if self.current_input.is_empty() {
+                None
+            } else {
+                Some(self.current_input.clone())
+            };
+            self.arguments[selected].value = new_value;
             self.update_preview();
         }
         self.input_mode = false;

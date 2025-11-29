@@ -3,12 +3,10 @@ use clap::Parser;
 
 mod app;
 mod cli;
-mod executor;
-mod help_parser;
+mod command_parser;
 mod tui;
 
 use cli::Cli;
-use executor::execute_command;
 use tui::run_tui;
 
 fn main() -> Result<()> {
@@ -20,9 +18,11 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
 
-    let final_command = run_tui(cli.wrapped_command)?;
+    let command_str = cli.wrapped_command.join(" ");
+    let final_command = run_tui(command_str)?;
+
     if let Some(cmd) = final_command {
-        execute_command(&cmd)?;
+        println!("\n{}", cmd);
     }
 
     Ok(())

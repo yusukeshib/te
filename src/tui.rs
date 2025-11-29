@@ -12,18 +12,16 @@ use ratatui::{
     Terminal,
 };
 use std::io;
-use std::process::Command;
 
 use crate::app::App;
-use crate::help_parser::parse_help_output;
+use crate::command_parser::parse_command;
 
-pub fn run_tui(command_parts: Vec<String>) -> Result<Option<String>> {
-    let help_output = get_help_output(&command_parts)?;
-    let arguments = parse_help_output(&help_output);
+pub fn run_tui(command_str: String) -> Result<Option<String>> {
+    let parsed = parse_command(&command_str)?;
 
-    if arguments.is_empty() {
-        println!("No arguments found for this command. Executing directly...");
-        return Ok(Some(command_parts.join(" ")));
+    if parsed.arguments.is_empty() {
+        println!("No arguments to edit. Command: {}", command_str);
+        return Ok(Some(command_str));
     }
 
     enable_raw_mode()?;
@@ -32,7 +30,7 @@ pub fn run_tui(command_parts: Vec<String>) -> Result<Option<String>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(command_parts, arguments);
+    let mut app = App::new(parsed.base_command, parsed.arguments);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -73,7 +71,7 @@ fn run_app<B: ratatui::backend::Backend>(
 
             let title = Paragraph::new(format!(
                 "te - Interactive CLI Helper | Command: {}",
-                app.command_parts.join(" ")
+                app.base_command.join(" ")
             ))
             .block(Block::default().borders(Borders::ALL))
             .style(Style::default().fg(Color::Cyan));
@@ -82,19 +80,18 @@ fn run_app<B: ratatui::backend::Backend>(
             let items: Vec<ListItem> = app
                 .arguments
                 .iter()
-                .enumerate()
-                .map(|(i, arg)| {
-                    let required_marker = if arg.required { "*" } else { " " };
-                    let value_display = if app.selected_values[i].is_empty() {
-                        String::from("<not set>")
-                    } else {
-                        app.selected_values[i].clone()
-                    };
+                .map(|arg| {
+                    let value_display = arg
+                        .value
+                        .as_ref()
+                        .map(|v| v.as_str())
+                        .unwrap_or("<not set>");
 
-                    let content = format!(
-                        "{} {} = {} | {}",
-                        required_marker, arg.name, value_display, arg.description
-                    );
+                    let content = if arg.flag.is_empty() {
+                        format!("(positional) = {}", value_display)
+                    } else {
+                        format!("{} = {}", arg.flag, value_display)
+                    };
 
                     ListItem::new(content)
                 })
@@ -172,23 +169,3 @@ fn run_app<B: ratatui::backend::Backend>(
     }
 }
 
-fn get_help_output(command_parts: &[String]) -> Result<String> {
-    if command_parts.is_empty() {
-        anyhow::bail!("No command specified");
-    }
-
-    let mut cmd = Command::new(&command_parts[0]);
-    for part in &command_parts[1..] {
-        cmd.arg(part);
-    }
-    cmd.arg("--help");
-
-    let output = cmd.output()?;
-
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Failed to get help output: {}", stderr)
-    }
-}
