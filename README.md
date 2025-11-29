@@ -59,6 +59,47 @@ cd te
 cargo build --release
 ```
 
+### Shell Integration (Recommended)
+
+To execute commands directly and add them to your shell history, add this function to your shell config:
+
+**Bash** (`~/.bashrc` or `~/.bash_profile`):
+```bash
+te() {
+    local result=$(command te "$@")
+    if [ $? -eq 0 ] && [ -n "$result" ]; then
+        history -s "$result"
+        eval "$result"
+    fi
+}
+```
+
+**Zsh** (`~/.zshrc`):
+```zsh
+te() {
+    local result=$(command te "$@")
+    if [ $? -eq 0 ] && [ -n "$result" ]; then
+        print -s "$result"
+        eval "$result"
+    fi
+}
+```
+
+**Fish** (`~/.config/fish/functions/te.fish`):
+```fish
+function te
+    set -l result (command te $argv)
+    if test $status -eq 0 -a -n "$result"
+        eval "$result"
+    end
+end
+```
+
+With shell integration:
+- ✅ Commands are executed immediately after confirmation
+- ✅ Commands appear in your shell history
+- ✅ Exit codes are preserved
+
 ## Usage
 
 ### Basic Usage
@@ -89,10 +130,10 @@ te $(history | grep kubectl | tail -1 | cut -d' ' -f4-)
 ## How It Works
 
 1. **Parse Command**: `te` parses your command line to extract the base command, subcommands, and all arguments with their values
-2. **Present TUI**: Shows an interactive form with current values pre-filled
+2. **Present TUI**: Shows an interactive inline form with current values pre-filled
 3. **Edit**: You modify the values you want to change
-4. **Display**: Shows the final command string (does not execute it)
-5. **Copy & Run**: You copy and run the command manually
+4. **Output**: Prints the final command to stdout
+5. **Execute** (with shell integration): The shell wrapper adds it to history and executes it
 
 ## Comparison
 

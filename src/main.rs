@@ -22,7 +22,9 @@ fn main() -> Result<()> {
     let final_command = run_tui(command_str)?;
 
     if let Some(cmd) = final_command {
-        println!("\n{}", cmd);
+        println!("{}", cmd);
+    } else {
+        std::process::exit(1);
     }
 
     Ok(())
