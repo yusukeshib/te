@@ -12,7 +12,7 @@ use ratatui::{
 };
 use std::io;
 
-use crate::app::App;
+use crate::app::{App, Value};
 use crate::command_parser::parse_command;
 
 pub fn run_tui(command_str: String) -> Result<Option<String>> {
@@ -68,8 +68,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 width: area.width,
                 height: 1,
             };
-            let help = Paragraph::new("↑/↓: navigate, Enter: edit, Ctrl+X: execute, ESC: cancel")
-                .style(Style::default().fg(Color::DarkGray));
+            let help = Paragraph::new(
+                "↑/↓: navigate, Space: toggle, Enter: edit, Ctrl+X: execute, ESC: cancel",
+            )
+            .style(Style::default().fg(Color::DarkGray));
             f.render_widget(help, help_area);
 
             // Render each argument
@@ -82,7 +84,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     height: 1,
                 };
 
-                // Argument name (left side, max 20 chars)
+                // Argument name (max 20 chars)
                 let name_display = if arg.flag.is_empty() {
                     "(positional)".to_string()
                 } else {
@@ -94,14 +96,19 @@ fn run_app<B: ratatui::backend::Backend>(
                     name_display
                 };
 
-                // Value display (right side)
-                let value_display = if app.input_mode && i == selected {
-                    app.current_input.as_str()
-                } else {
-                    arg.value
-                        .as_ref()
-                        .map(|v| v.as_str())
-                        .unwrap_or("<not set>")
+                // TODO: Code is super messy here
+
+                // Value display (right side) depends on Value type
+                let (show_checkbox, checkbox_display, value_display) = match &arg.value {
+                    Value::Checked(checked) => (true, if *checked { "TRUE" } else { "FALSE" }, ""),
+                    Value::String(s) => {
+                        let display = if app.input_mode && i == selected {
+                            app.current_input.as_str()
+                        } else {
+                            s.as_str()
+                        };
+                        (false, "", display)
+                    }
                 };
 
                 // Apply style based on selection
@@ -127,19 +134,32 @@ fn run_app<B: ratatui::backend::Backend>(
                     height: 1,
                 };
 
-                // Value area (rest of the line)
-                let value_area = ratatui::layout::Rect {
-                    x: row_area.x + 20,
-                    y: row_area.y,
-                    width: row_area.width.saturating_sub(20),
-                    height: 1,
-                };
-
                 let name_widget = Paragraph::new(name_display).style(name_style);
-                let value_widget = Paragraph::new(value_display).style(value_style);
-
                 f.render_widget(name_widget, name_area);
-                f.render_widget(value_widget, value_area);
+
+                if show_checkbox {
+                    // Layout: [name 20 chars] [checkbox flex]
+                    let checkbox_area = ratatui::layout::Rect {
+                        x: row_area.x + 20,
+                        y: row_area.y,
+                        width: row_area.width.saturating_sub(20),
+                        height: 1,
+                    };
+
+                    let checkbox_widget = Paragraph::new(checkbox_display).style(value_style);
+                    f.render_widget(checkbox_widget, checkbox_area);
+                } else {
+                    // Layout: [name 20 chars] [value flex]
+                    let value_area = ratatui::layout::Rect {
+                        x: row_area.x + 20,
+                        y: row_area.y,
+                        width: row_area.width.saturating_sub(20),
+                        height: 1,
+                    };
+
+                    let value_widget = Paragraph::new(value_display).style(value_style);
+                    f.render_widget(value_widget, value_area);
+                }
             }
         })?;
 
@@ -164,6 +184,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Esc => return Ok(false),
                     KeyCode::Down => app.next(),
                     KeyCode::Up => app.previous(),
+                    KeyCode::Char(' ') => app.toggle_checkbox(),
                     KeyCode::Enter => app.start_input(),
                     KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(true);

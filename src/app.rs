@@ -3,7 +3,13 @@ use ratatui::widgets::ListState;
 #[derive(Debug, Clone)]
 pub struct Argument {
     pub flag: String,
-    pub value: Option<String>,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub enum Value {
+    String(String),
+    Checked(bool),
 }
 
 pub struct App {
@@ -38,11 +44,18 @@ impl App {
         let mut parts = base_command.to_vec();
 
         for arg in arguments.iter() {
-            if !arg.flag.is_empty() {
-                parts.push(arg.flag.clone());
-            }
-            if let Some(value) = &arg.value {
-                parts.push(value.clone());
+            match &arg.value {
+                Value::String(s) => {
+                    if !arg.flag.is_empty() {
+                        parts.push(arg.flag.clone());
+                    }
+                    parts.push(s.clone());
+                }
+                Value::Checked(checked) => {
+                    if *checked {
+                        parts.push(arg.flag.clone());
+                    }
+                }
             }
         }
 
@@ -89,22 +102,17 @@ impl App {
 
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            self.input_mode = true;
-            self.current_input = self.arguments[selected]
-                .value
-                .clone()
-                .unwrap_or_default();
+            // Only allow editing for String values
+            if let Value::String(s) = &self.arguments[selected].value {
+                self.input_mode = true;
+                self.current_input = s.clone();
+            }
         }
     }
 
     pub fn confirm_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            let new_value = if self.current_input.is_empty() {
-                None
-            } else {
-                Some(self.current_input.clone())
-            };
-            self.arguments[selected].value = new_value;
+            self.arguments[selected].value = Value::String(self.current_input.clone());
             self.update_preview();
         }
         self.input_mode = false;
@@ -114,5 +122,14 @@ impl App {
     pub fn cancel_input(&mut self) {
         self.input_mode = false;
         self.current_input.clear();
+    }
+
+    pub fn toggle_checkbox(&mut self) {
+        if let Some(selected) = self.list_state.selected() {
+            if let Value::Checked(checked) = &self.arguments[selected].value {
+                self.arguments[selected].value = Value::Checked(!checked);
+                self.update_preview();
+            }
+        }
     }
 }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::app::Argument;
+use crate::app::{Argument, Value};
 
 #[derive(Debug)]
 pub struct ParsedCommand {
@@ -40,7 +40,7 @@ pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
                 let value = token[eq_pos + 1..].to_string();
                 arguments.push(Argument {
                     flag,
-                    value: Some(value),
+                    value: Value::String(value),
                 });
                 i += 1;
             } else {
@@ -50,14 +50,14 @@ pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
                     let value = tokens[i + 1].clone();
                     arguments.push(Argument {
                         flag,
-                        value: Some(value),
+                        value: Value::String(value),
                     });
                     i += 2;
                 } else {
                     // Boolean flag (no value)
                     arguments.push(Argument {
                         flag,
-                        value: None,
+                        value: Value::Checked(true),
                     });
                     i += 1;
                 }
@@ -67,7 +67,7 @@ pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
             // Treat it as a positional argument
             arguments.push(Argument {
                 flag: String::new(),
-                value: Some(token.clone()),
+                value: Value::String(token.clone()),
             });
             i += 1;
         }
