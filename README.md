@@ -61,44 +61,37 @@ cargo build --release
 
 ### Shell Integration (Recommended)
 
-To execute commands directly and add them to your shell history, add this function to your shell config:
-
-**Bash** (`~/.bashrc` or `~/.bash_profile`):
-```bash
-te() {
-    local result=$(command te "$@")
-    if [ $? -eq 0 ] && [ -n "$result" ]; then
-        history -s "$result"
-        eval "$result"
-    fi
-}
-```
+For the best experience, enable shell integration to execute commands directly and access additional features like keybindings.
 
 **Zsh** (`~/.zshrc`):
 ```zsh
-te() {
-    local result=$(command te "$@")
-    if [ $? -eq 0 ] && [ -n "$result" ]; then
-        print -s "$result"
-        eval "$result"
-    fi
-}
+eval "$(te init zsh)"
 ```
 
-**Fish** (`~/.config/fish/functions/te.fish`):
+**Bash** (`~/.bashrc` or `~/.bash_profile`):
+```bash
+eval "$(te init bash)"
+```
+
+**Fish** (`~/.config/fish/config.fish`):
 ```fish
-function te
-    set -l result (command te $argv)
-    if test $status -eq 0 -a -n "$result"
-        eval "$result"
-    end
-end
+te init fish | source
 ```
 
-With shell integration:
+With shell integration you get:
+- ✅ `te-run` function - Wraps te to execute commands and add them to history
+- ✅ **Zsh only**: Press `Ctrl+T` to invoke te on your current command line
 - ✅ Commands are executed immediately after confirmation
 - ✅ Commands appear in your shell history
-- ✅ Exit codes are preserved
+
+**Usage with shell integration:**
+```bash
+# Use te-run to execute commands
+te-run kubectl get pods -l app=myapp
+
+# In Zsh: Type a command and press Ctrl+T to edit it interactively
+kubectl get pods -l app=myapp  # Press Ctrl+T here
+```
 
 ## Usage
 
