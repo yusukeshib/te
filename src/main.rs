@@ -14,8 +14,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Handle init subcommand
-    if let Some(Command::Init { shell }) = cli.command {
-        if let Some(script) = shell::generate_init_script(&shell) {
+    if let Some(Command::Init { shell, bindkey }) = cli.command {
+        if let Some(script) = shell::generate_init_script(&shell, bindkey) {
             print!("{}", script);
             return Ok(());
         } else {

@@ -1,7 +1,7 @@
-pub fn generate_init_script(shell: &str) -> Option<String> {
+pub fn generate_init_script(shell: &str, bindkey: Option<String>) -> Option<String> {
     let te_path = get_te_path();
     match shell {
-        "zsh" => Some(generate_zsh_script(&te_path)),
+        "zsh" => Some(generate_zsh_script(&te_path, bindkey)),
         "bash" => Some(generate_bash_script(&te_path)),
         "fish" => Some(generate_fish_script(&te_path)),
         _ => None,
@@ -22,8 +22,9 @@ fn get_te_path() -> String {
     "te".to_string()
 }
 
-fn generate_zsh_script(te_path: &str) -> String {
-    format!(r#"# te shell integration for zsh
+fn generate_zsh_script(te_path: &str, bindkey: Option<String>) -> String {
+    format!(
+        r#"# te shell integration for zsh
 
 # Function to run te and execute the resulting command
 te-run() {{
@@ -53,12 +54,17 @@ te-widget() {{
 zle -N te-widget
 
 # Bind Ctrl+T to the widget (you can customize this)
-bindkey '^T' te-widget
-"#, te_path, te_path)
+bindkey '{}' te-widget
+"#,
+        te_path,
+        te_path,
+        bindkey.unwrap_or("^T".to_string())
+    )
 }
 
 fn generate_bash_script(te_path: &str) -> String {
-    format!(r#"# te shell integration for bash
+    format!(
+        r#"# te shell integration for bash
 
 # Function to run te and execute the resulting command
 te-run() {{
@@ -68,11 +74,14 @@ te-run() {{
         eval "$result"
     fi
 }}
-"#, te_path)
+"#,
+        te_path
+    )
 }
 
 fn generate_fish_script(te_path: &str) -> String {
-    format!(r#"# te shell integration for fish
+    format!(
+        r#"# te shell integration for fish
 
 # Function to run te and execute the resulting command
 function te-run
@@ -81,5 +90,7 @@ function te-run
         eval $result
     end
 end
-"#, te_path)
+"#,
+        te_path
+    )
 }

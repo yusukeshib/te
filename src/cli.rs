@@ -7,7 +7,7 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
 
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    #[arg(allow_hyphen_values = true)]
     pub wrapped_command: Vec<String>,
 }
 
@@ -17,5 +17,8 @@ pub enum Command {
     Init {
         /// Shell to generate integration for (zsh, bash, fish)
         shell: String,
+        /// Optional key binding for zsh (default: ^T)
+        #[arg(short, long)]
+        bindkey: Option<String>,
     },
 }
