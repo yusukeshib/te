@@ -1,6 +1,6 @@
 [package]
 name = "te-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Interactive TUI wrapper for CLI commands - Your helping hand for command-line interfaces"
 license = "MIT"
