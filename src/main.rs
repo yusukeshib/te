@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use std::io::{self, IsTerminal, Read};
 
 mod app;
 mod cli;
@@ -26,13 +27,24 @@ fn main() -> Result<()> {
     }
 
     // Handle wrapped command
-    if cli.wrapped_command.is_empty() {
-        eprintln!("Error: No command specified");
-        eprintln!("Usage: te <command> [args...]");
-        std::process::exit(1);
-    }
+    let command_str = if cli.wrapped_command.is_empty() {
+        // Check if stdin is piped (not a terminal)
+        let stdin = io::stdin();
+        if !stdin.is_terminal() {
+            // Read from stdin
+            let mut buffer = String::new();
+            stdin.lock().read_to_string(&mut buffer)?;
+            buffer.trim().to_string()
+        } else {
+            eprintln!("Error: No command specified");
+            eprintln!("Usage: te <command> [args...]");
+            eprintln!("       echo '<command>' | te");
+            std::process::exit(1);
+        }
+    } else {
+        cli.wrapped_command.join(" ")
+    };
 
-    let command_str = cli.wrapped_command.join(" ");
     let final_command = run_tui(command_str)?;
 
     if let Some(cmd) = final_command {
