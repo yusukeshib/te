@@ -2,7 +2,7 @@ use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
@@ -10,6 +10,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::Paragraph,
 };
+use std::collections::HashMap;
 use std::fs::OpenOptions;
 
 use crate::app::{App, Value};
@@ -18,19 +19,22 @@ use crate::command_parser::parse_command;
 pub fn run_tui(command_str: String) -> Result<Option<String>> {
     let parsed = parse_command(&command_str)?;
 
-    if parsed.arguments.is_empty() {
-        println!("No arguments to edit. Command: {}", command_str);
-        return Ok(Some(command_str));
-    }
+    // if parsed.arguments.is_empty() {
+    //     println!("No arguments to edit. Command: {}", command_str);
+    //     return Ok(Some(command_str));
+    // }
+
+    // Load history
+    let history = match crate::history::load_history_for_command(&parsed.base_command) {
+        Ok(h) => h,
+        Err(_) => HashMap::new(),
+    };
 
     enable_raw_mode()?;
 
     // Open /dev/tty directly for both reading and writing (like fzf does)
     // This allows the TUI to work inside command substitution
-    let mut tty = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open("/dev/tty")?;
+    let mut tty = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
 
     execute!(tty, EnterAlternateScreen, EnableMouseCapture)?;
 
@@ -42,7 +46,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         },
     )?;
 
-    let mut app = App::new(parsed.base_command, parsed.arguments);
+    let mut app = App::new(parsed.base_command, parsed.arguments, history);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -86,7 +90,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 height: 1,
             };
             let help = Paragraph::new(
-                "↑/↓: navigate, Space: toggle, Enter: edit, Ctrl+X: execute, ESC: cancel",
+                "↑/↓: navigate, ←/→: history, Space: toggle, Enter: edit, Ctrl+X: execute, ESC: cancel",
             )
             .style(Style::default().fg(Color::DarkGray));
             f.render_widget(help, help_area);
@@ -162,11 +166,19 @@ fn run_app<B: ratatui::backend::Backend>(
                         f.render_widget(checkbox_widget, checkbox_area);
                     }
                     Value::String(s) => {
-                        let display = if app.input_mode && i == selected {
-                            app.current_input.as_str()
+                        let mut display = if app.input_mode && i == selected {
+                            app.current_input.clone()
                         } else {
-                            s.as_str()
+                            s.clone()
                         };
+
+                        // Add (X/Y) if history options exist
+                        if !app.input_mode || i != selected {
+                            if let Some((current, total)) = app.get_option_status(i) {
+                                display = format!("{} ({}/{})", display, current, total);
+                            }
+                        }
+
                         // Layout: [name 20 chars] [value flex]
                         let value_area = ratatui::layout::Rect {
                             x: row_area.x + 20,
@@ -211,6 +223,8 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Esc => return Ok(false),
                     KeyCode::Down => app.next(),
                     KeyCode::Up => app.previous(),
+                    KeyCode::Right => app.next_option(),
+                    KeyCode::Left => app.previous_option(),
                     KeyCode::Char(' ') => app.toggle_checkbox(),
                     KeyCode::Enter => app.handle_enter(),
                     KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {

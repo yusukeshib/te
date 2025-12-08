@@ -1,4 +1,5 @@
 use ratatui::widgets::ListState;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Argument {
@@ -19,16 +20,41 @@ pub struct App {
     pub preview_command: String,
     pub input_mode: bool,
     pub current_input: String,
+    pub history_options: HashMap<usize, Vec<String>>,
+    pub current_option_index: HashMap<usize, usize>,
 }
 
 impl App {
-    pub fn new(base_command: Vec<String>, arguments: Vec<Argument>) -> Self {
+    pub fn new(
+        base_command: Vec<String>,
+        arguments: Vec<Argument>,
+        history: HashMap<String, Vec<String>>,
+    ) -> Self {
         let mut list_state = ListState::default();
         if !arguments.is_empty() {
             list_state.select(Some(0));
         }
 
         let preview_command = Self::build_preview(&base_command, &arguments);
+
+        // Build mapping of history options
+        let mut history_options = HashMap::new();
+        let mut current_option_index = HashMap::new();
+
+        for (idx, arg) in arguments.iter().enumerate() {
+            if let Some(values) = history.get(&arg.flag) {
+                if !values.is_empty() {
+                    history_options.insert(idx, values.clone());
+                    // Set index if current value exists in history
+                    if let Value::String(current) = &arg.value {
+                        let option_idx = values.iter().position(|v| v == current).unwrap_or(0);
+                        current_option_index.insert(idx, option_idx);
+                    } else {
+                        current_option_index.insert(idx, 0);
+                    }
+                }
+            }
+        }
 
         Self {
             base_command,
@@ -37,6 +63,8 @@ impl App {
             preview_command,
             input_mode: false,
             current_input: String::new(),
+            history_options,
+            current_option_index,
         }
     }
 
@@ -139,6 +167,76 @@ impl App {
                 Value::String(_) => self.start_input(),
                 Value::Checked(_) => self.toggle_checkbox(),
             }
+        }
+    }
+
+    pub fn next_option(&mut self) {
+        if let Some(selected) = self.list_state.selected() {
+            if !matches!(self.arguments[selected].value, Value::String(_)) {
+                return;
+            }
+
+            if let Some(options) = self.history_options.get(&selected) {
+                if options.is_empty() {
+                    return;
+                }
+
+                let current_idx = self
+                    .current_option_index
+                    .get(&selected)
+                    .copied()
+                    .unwrap_or(0);
+                let next_idx = (current_idx + 1) % options.len();
+
+                self.current_option_index.insert(selected, next_idx);
+                self.arguments[selected].value = Value::String(options[next_idx].clone());
+                self.update_preview();
+            }
+        }
+    }
+
+    pub fn previous_option(&mut self) {
+        if let Some(selected) = self.list_state.selected() {
+            if !matches!(self.arguments[selected].value, Value::String(_)) {
+                return;
+            }
+
+            if let Some(options) = self.history_options.get(&selected) {
+                if options.is_empty() {
+                    return;
+                }
+
+                let current_idx = self
+                    .current_option_index
+                    .get(&selected)
+                    .copied()
+                    .unwrap_or(0);
+                let prev_idx = if current_idx == 0 {
+                    options.len() - 1
+                } else {
+                    current_idx - 1
+                };
+
+                self.current_option_index.insert(selected, prev_idx);
+                self.arguments[selected].value = Value::String(options[prev_idx].clone());
+                self.update_preview();
+            }
+        }
+    }
+
+    pub fn get_option_status(&self, arg_index: usize) -> Option<(usize, usize)> {
+        if let Some(options) = self.history_options.get(&arg_index) {
+            if options.is_empty() {
+                return None;
+            }
+            let current = self
+                .current_option_index
+                .get(&arg_index)
+                .copied()
+                .unwrap_or(0);
+            Some((current + 1, options.len()))
+        } else {
+            None
         }
     }
 }

@@ -5,6 +5,7 @@ use std::io::{self, IsTerminal, Read};
 mod app;
 mod cli;
 mod command_parser;
+mod history;
 mod shell;
 mod tui;
 
