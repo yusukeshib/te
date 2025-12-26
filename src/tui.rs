@@ -3,7 +3,7 @@ use crossterm::{
     cursor,
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
+    terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
@@ -94,18 +94,20 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         },
     )?;
 
-    let mut app = App::new(parsed.base_command, parsed.arguments, history, cursor_y);
+    // Start TUI from the next line (cursor_y + 1) to keep current line intact
+    let mut app = App::new(parsed.base_command, parsed.arguments, history, cursor_y + 1);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
 
-    // Clear the TUI content and restore cursor to original position
+    // Clear the TUI content from the next line down, keeping the current line intact
     let backend = terminal.backend_mut();
     execute!(
         backend,
         DisableMouseCapture,
-        cursor::MoveTo(cursor_x, cursor_y),
-        Clear(ClearType::FromCursorDown)
+        cursor::MoveTo(0, cursor_y + 1),
+        Clear(ClearType::FromCursorDown),
+        cursor::MoveTo(cursor_x, cursor_y)
     )?;
     terminal.show_cursor()?;
 
@@ -129,8 +131,22 @@ fn run_app<B: ratatui::backend::Backend>(
         terminal.draw(|f| {
             let area = f.area();
 
-            // Start from the cursor position
+            // Start from the cursor position (which is cursor_y + 1, leaving cursor_y for command preview)
             let start_y = app.cursor_y;
+
+            // Render the current command preview on the line above (cursor_y - 1)
+            if start_y > 0 {
+                let preview_area = ratatui::layout::Rect {
+                    x: area.x,
+                    y: start_y - 1,
+                    width: area.width,
+                    height: 1,
+                };
+                let preview_text = format!("> {}", app.preview_command);
+                let preview = Paragraph::new(preview_text)
+                    .style(Style::default().fg(Color::White));
+                f.render_widget(preview, preview_area);
+            }
 
             // Help text on first line
             let help_area = ratatui::layout::Rect {
