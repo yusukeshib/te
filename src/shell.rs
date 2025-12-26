@@ -38,14 +38,21 @@ te-run() {{
 # Widget to invoke te with current buffer content
 te-widget() {{
     if [ -n "$BUFFER" ]; then
-        local result
-        result=$({} $BUFFER)
-        local ret=$?
+        local original_buffer="$BUFFER"
+        # Clear the command line before invoking te
+        BUFFER=""
         zle reset-prompt
+        local result
+        result=$({} "$original_buffer")
+        local ret=$?
         if [ $ret -eq 0 ] && [ -n "$result" ]; then
             BUFFER="$result"
-            zle end-of-line
+        else
+            # Restore original buffer if te was cancelled or failed
+            BUFFER="$original_buffer"
         fi
+        zle reset-prompt
+        zle end-of-line
         return $ret
     fi
 }}

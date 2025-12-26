@@ -1,8 +1,9 @@
 use anyhow::Result;
 use crossterm::{
+    cursor,
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType},
 };
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
@@ -17,7 +18,7 @@ use crate::app::{App, Value};
 use crate::command_parser::parse_command;
 
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
-fn get_cursor_position(tty: &mut std::fs::File) -> Result<u16> {
+fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
     use std::io::{Read, Write};
 
     // Query cursor position with ANSI escape code
@@ -45,16 +46,16 @@ fn get_cursor_position(tty: &mut std::fs::File) -> Result<u16> {
     let response_str = String::from_utf8_lossy(&response);
     if let Some(pos_str) = response_str.strip_prefix("\x1b[") {
         if let Some(pos_str) = pos_str.strip_suffix('R') {
-            if let Some((row_str, _)) = pos_str.split_once(';') {
-                if let Ok(row) = row_str.parse::<u16>() {
+            if let Some((row_str, col_str)) = pos_str.split_once(';') {
+                if let (Ok(row), Ok(col)) = (row_str.parse::<u16>(), col_str.parse::<u16>()) {
                     // Convert from 1-based to 0-based
-                    return Ok(row.saturating_sub(1));
+                    return Ok((col.saturating_sub(1), row.saturating_sub(1)));
                 }
             }
         }
     }
 
-    Ok(0)
+    Ok((0, 0))
 }
 
 pub fn run_tui(command_str: String) -> Result<Option<String>> {
@@ -71,13 +72,14 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         Err(_) => HashMap::new(),
     };
 
-    // Get cursor position from /dev/tty before entering raw mode
-    let cursor_y = {
-        let mut tty_read = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
-        get_cursor_position(&mut tty_read).unwrap_or(0)
-    };
-
+    // Enable raw mode first to prevent escape sequences from echoing
     enable_raw_mode()?;
+
+    // Get cursor position from /dev/tty
+    let (cursor_x, cursor_y) = {
+        let mut tty_read = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
+        get_cursor_position(&mut tty_read).unwrap_or((0, 0))
+    };
 
     // Open /dev/tty directly for both reading and writing (like fzf does)
     // This allows the TUI to work inside command substitution
@@ -96,9 +98,14 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
+
+    // Clear the TUI content and restore cursor to original position
+    let backend = terminal.backend_mut();
     execute!(
-        terminal.backend_mut(),
-        DisableMouseCapture
+        backend,
+        DisableMouseCapture,
+        cursor::MoveTo(cursor_x, cursor_y),
+        Clear(ClearType::FromCursorDown)
     )?;
     terminal.show_cursor()?;
 
