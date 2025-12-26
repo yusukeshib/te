@@ -1,5 +1,6 @@
 use anyhow::Result;
 use crossterm::{
+    cursor,
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -30,12 +31,14 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         Err(_) => HashMap::new(),
     };
 
-    enable_raw_mode()?;
-
     // Open /dev/tty directly for both reading and writing (like fzf does)
     // This allows the TUI to work inside command substitution
     let mut tty = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
 
+    // Get cursor position before entering alternate screen
+    let cursor_pos = cursor::position()?;
+
+    enable_raw_mode()?;
     execute!(tty, EnterAlternateScreen, EnableMouseCapture)?;
 
     let backend = CrosstermBackend::new(tty);
@@ -46,7 +49,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         },
     )?;
 
-    let mut app = App::new(parsed.base_command, parsed.arguments, history);
+    let mut app = App::new(parsed.base_command, parsed.arguments, history, cursor_pos.1);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -77,12 +80,10 @@ fn run_app<B: ratatui::backend::Backend>(
         terminal.draw(|f| {
             let area = f.area();
 
-            // Calculate content height: 1 line for help + 1 line per argument
-            let content_height = 1 + app.arguments.len() as u16;
-            // Start from bottom
-            let start_y = area.height.saturating_sub(content_height);
+            // Start from the cursor position
+            let start_y = app.cursor_y;
 
-            // Help text on first line of content (at bottom)
+            // Help text on first line
             let help_area = ratatui::layout::Rect {
                 x: area.x,
                 y: start_y,

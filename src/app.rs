@@ -22,6 +22,7 @@ pub struct App {
     pub current_input: String,
     pub history_options: HashMap<usize, Vec<String>>,
     pub current_option_index: HashMap<usize, usize>,
+    pub cursor_y: u16,
 }
 
 impl App {
@@ -29,6 +30,7 @@ impl App {
         base_command: Vec<String>,
         arguments: Vec<Argument>,
         history: HashMap<String, Vec<String>>,
+        cursor_y: u16,
     ) -> Self {
         let mut list_state = ListState::default();
         if !arguments.is_empty() {
@@ -65,6 +67,7 @@ impl App {
             current_input: String::new(),
             history_options,
             current_option_index,
+            cursor_y,
         }
     }
 
