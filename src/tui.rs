@@ -1,6 +1,5 @@
 use anyhow::Result;
 use crossterm::{
-    cursor,
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -17,6 +16,47 @@ use std::fs::OpenOptions;
 use crate::app::{App, Value};
 use crate::command_parser::parse_command;
 
+/// Get cursor position by querying /dev/tty directly using ANSI escape codes
+fn get_cursor_position(tty: &mut std::fs::File) -> Result<u16> {
+    use std::io::{Read, Write};
+
+    // Query cursor position with ANSI escape code
+    tty.write_all(b"\x1b[6n")?;
+    tty.flush()?;
+
+    // Read response: ESC [ row ; col R
+    let mut buf = [0u8; 32];
+    let mut response = Vec::new();
+
+    // Set a simple timeout by reading byte by byte
+    for _ in 0..32 {
+        match tty.read(&mut buf[0..1]) {
+            Ok(1) => {
+                response.push(buf[0]);
+                if buf[0] == b'R' {
+                    break;
+                }
+            }
+            _ => break,
+        }
+    }
+
+    // Parse response: ESC [ {row} ; {col} R
+    let response_str = String::from_utf8_lossy(&response);
+    if let Some(pos_str) = response_str.strip_prefix("\x1b[") {
+        if let Some(pos_str) = pos_str.strip_suffix('R') {
+            if let Some((row_str, _)) = pos_str.split_once(';') {
+                if let Ok(row) = row_str.parse::<u16>() {
+                    // Convert from 1-based to 0-based
+                    return Ok(row.saturating_sub(1));
+                }
+            }
+        }
+    }
+
+    Ok(0)
+}
+
 pub fn run_tui(command_str: String) -> Result<Option<String>> {
     let parsed = parse_command(&command_str)?;
 
@@ -31,14 +71,17 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         Err(_) => HashMap::new(),
     };
 
+    // Get cursor position from /dev/tty before entering alternate screen
+    let cursor_y = {
+        let mut tty_read = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
+        get_cursor_position(&mut tty_read).unwrap_or(0)
+    };
+
+    enable_raw_mode()?;
+
     // Open /dev/tty directly for both reading and writing (like fzf does)
     // This allows the TUI to work inside command substitution
     let mut tty = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
-
-    // Get cursor position before entering alternate screen
-    let cursor_pos = cursor::position()?;
-
-    enable_raw_mode()?;
     execute!(tty, EnterAlternateScreen, EnableMouseCapture)?;
 
     let backend = CrosstermBackend::new(tty);
@@ -49,7 +92,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         },
     )?;
 
-    let mut app = App::new(parsed.base_command, parsed.arguments, history, cursor_pos.1);
+    let mut app = App::new(parsed.base_command, parsed.arguments, history, cursor_y);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
