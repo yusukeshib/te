@@ -29,7 +29,9 @@ fn generate_zsh_script(te_path: &str, bindkey: Option<String>) -> String {
 # Function to run te and execute the resulting command
 te-run() {{
     local result
-    result=$({} "$@")
+    # Use TE_PATH if set, otherwise use default
+    local te_cmd="${{TE_PATH:-{}}}"
+    result=$($te_cmd "$@")
     if [ $? -eq 0 ] && [ -n "$result" ]; then
         eval "$result"
     fi
@@ -43,7 +45,9 @@ te-widget() {{
         BUFFER=""
         zle reset-prompt
         local result
-        result=$({} "$original_buffer")
+        # Use TE_PATH if set, otherwise use default
+        local te_cmd="${{TE_PATH:-{}}}"
+        result=$($te_cmd "$original_buffer")
         local ret=$?
         if [ $ret -eq 0 ] && [ -n "$result" ]; then
             BUFFER="$result"
@@ -76,7 +80,9 @@ fn generate_bash_script(te_path: &str) -> String {
 # Function to run te and execute the resulting command
 te-run() {{
     local result
-    result=$({} "$@")
+    # Use TE_PATH if set, otherwise use default
+    local te_cmd="${{TE_PATH:-{}}}"
+    result=$($te_cmd "$@")
     if [ $? -eq 0 ] && [ -n "$result" ]; then
         eval "$result"
     fi
@@ -92,7 +98,9 @@ fn generate_fish_script(te_path: &str) -> String {
 
 # Function to run te and execute the resulting command
 function te-run
-    set -l result ({} $argv)
+    # Use TE_PATH if set, otherwise use default
+    set -l te_cmd (if set -q TE_PATH; echo $TE_PATH; else; echo {}; end)
+    set -l result ($te_cmd $argv)
     if test $status -eq 0 -a -n "$result"
         eval $result
     end
