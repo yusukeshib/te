@@ -2,7 +2,7 @@ use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
@@ -71,7 +71,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         Err(_) => HashMap::new(),
     };
 
-    // Get cursor position from /dev/tty before entering alternate screen
+    // Get cursor position from /dev/tty before entering raw mode
     let cursor_y = {
         let mut tty_read = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
         get_cursor_position(&mut tty_read).unwrap_or(0)
@@ -82,7 +82,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     // Open /dev/tty directly for both reading and writing (like fzf does)
     // This allows the TUI to work inside command substitution
     let mut tty = OpenOptions::new().read(true).write(true).open("/dev/tty")?;
-    execute!(tty, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(tty, EnableMouseCapture)?;
 
     let backend = CrosstermBackend::new(tty);
     let mut terminal = Terminal::with_options(
@@ -98,7 +98,6 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
-        LeaveAlternateScreen,
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
