@@ -14,7 +14,7 @@ use ratatui::{
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 
-use crate::app::{App, Value};
+use crate::app::{App, CommandComponent};
 use crate::command_parser::parse_command;
 
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
@@ -59,15 +59,19 @@ fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
 }
 
 pub fn run_tui(command_str: String) -> Result<Option<String>> {
-    let parsed = parse_command(&command_str)?;
+    let components = parse_command(&command_str)?;
 
-    // if parsed.arguments.is_empty() {
-    //     println!("No arguments to edit. Command: {}", command_str);
-    //     return Ok(Some(command_str));
-    // }
+    // Extract base_command for history loading
+    let base_command: Vec<String> = components
+        .iter()
+        .filter_map(|c| match c {
+            CommandComponent::Base(s) => Some(s.clone()),
+            _ => None,
+        })
+        .collect();
 
     // Load history
-    let history = match crate::history::load_history_for_command(&parsed.base_command) {
+    let history = match crate::history::load_history_for_command(&base_command) {
         Ok(h) => h,
         Err(_) => HashMap::new(),
     };
@@ -95,7 +99,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     )?;
 
     // Start TUI from the next line (cursor_y + 1) to keep current line intact
-    let mut app = App::new(parsed.base_command, parsed.arguments, history, cursor_y + 1);
+    let mut app = App::new(components, history, cursor_y + 1);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -161,9 +165,9 @@ fn run_app<B: ratatui::backend::Backend>(
             .style(Style::default().fg(Color::DarkGray));
             f.render_widget(help, help_area);
 
-            // Render each argument
+            // Render each component
             let selected = app.list_state.selected().unwrap_or(0);
-            for (i, arg) in app.arguments.iter().enumerate() {
+            for (i, component) in app.components.iter().enumerate() {
                 let row_area = ratatui::layout::Rect {
                     x: area.x,
                     y: start_y + 1 + i as u16,
@@ -171,11 +175,17 @@ fn run_app<B: ratatui::backend::Backend>(
                     height: 1,
                 };
 
-                // Argument name (max 20 chars)
-                let name_display = if arg.flag.is_empty() {
-                    "(positional)".to_string()
-                } else {
-                    arg.flag.clone()
+                // Component name (max 20 chars)
+                let name_display = match component {
+                    CommandComponent::Base(s) => format!("base: {}", s),
+                    CommandComponent::StringArgument(flag, _) => {
+                        if flag.is_empty() {
+                            "(positional)".to_string()
+                        } else {
+                            flag.clone()
+                        }
+                    }
+                    CommandComponent::BoolArgument(flag, _) => flag.clone(),
                 };
                 let name_display = if name_display.len() > 20 {
                     format!("{}...", &name_display[..17])
@@ -216,9 +226,21 @@ fn run_app<B: ratatui::backend::Backend>(
                 let name_widget = Paragraph::new(name_display).style(name_style);
                 f.render_widget(name_widget, name_area);
 
-                // Value display (right side) depends on Value type
-                match &arg.value {
-                    Value::Checked(checked) => {
+                // Value display (right side) depends on CommandComponent type
+                match component {
+                    CommandComponent::Base(s) => {
+                        // Layout: [name 20 chars] [value flex]
+                        let value_area = ratatui::layout::Rect {
+                            x: row_area.x + 20,
+                            y: row_area.y,
+                            width: row_area.width.saturating_sub(20),
+                            height: 1,
+                        };
+
+                        let value_widget = Paragraph::new(s.clone()).style(value_style);
+                        f.render_widget(value_widget, value_area);
+                    }
+                    CommandComponent::BoolArgument(_, checked) => {
                         // Layout: [name 20 chars] [checkbox flex]
                         let checkbox_area = ratatui::layout::Rect {
                             x: row_area.x + 20,
@@ -231,7 +253,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         let checkbox_widget = Paragraph::new(display).style(value_style);
                         f.render_widget(checkbox_widget, checkbox_area);
                     }
-                    Value::String(s) => {
+                    CommandComponent::StringArgument(_, s) => {
                         let mut display = if app.input_mode && i == selected {
                             app.current_input.clone()
                         } else {

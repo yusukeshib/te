@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-use crate::app::Value;
+use crate::app::CommandComponent;
 use crate::command_parser::parse_command;
 
 pub enum Shell {
@@ -143,11 +143,11 @@ pub fn load_history_for_command(base_command: &[String]) -> Result<HashMap<Strin
             continue;
         }
 
-        if let Ok(parsed) = parse_command(command) {
-            for arg in parsed.arguments {
-                if let Value::String(value) = arg.value {
+        if let Ok(components) = parse_command(command) {
+            for component in components {
+                if let CommandComponent::StringArgument(flag, value) = component {
                     values
-                        .entry(arg.flag)
+                        .entry(flag)
                         .or_insert_with(HashSet::new)
                         .insert(value);
                 }

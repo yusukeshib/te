@@ -16,8 +16,21 @@
                 ]
             },
             "args": [
-                "cargo",
-                "build"
+                "gcloud",
+                "alpha",
+                "pam",
+                "grants",
+                "create",
+                "--entitlement",
+                "secret-manager-admin",
+                "--requested-duration",
+                "28800s",
+                "--justification",
+                "dev",
+                "--location",
+                "global",
+                "--project",
+                "my-project"
             ]
         },
         {

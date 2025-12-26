@@ -1,13 +1,7 @@
-use crate::app::{Argument, Value};
+use crate::app::CommandComponent;
 use anyhow::Result;
 
-#[derive(Debug)]
-pub struct ParsedCommand {
-    pub base_command: Vec<String>,
-    pub arguments: Vec<Argument>,
-}
-
-pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
+pub fn parse_command(command_str: &str) -> Result<Vec<CommandComponent>> {
     let tokens = shlex::split(command_str)
         .ok_or_else(|| anyhow::anyhow!("Failed to parse command string"))?;
 
@@ -15,8 +9,7 @@ pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
         anyhow::bail!("Empty command");
     }
 
-    let mut base_command = Vec::new();
-    let mut arguments = Vec::new();
+    let mut components = Vec::new();
     let mut i = 0;
 
     // Find where arguments start (first token starting with -)
@@ -25,7 +18,7 @@ pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
         if token.starts_with('-') {
             break;
         }
-        base_command.push(token.clone());
+        components.push(CommandComponent::Base(token.clone()));
         i += 1;
     }
 
@@ -38,45 +31,33 @@ pub fn parse_command(command_str: &str) -> Result<ParsedCommand> {
             if let Some(eq_pos) = token.find('=') {
                 let flag = token[..eq_pos].to_string();
                 let value = token[eq_pos + 1..].to_string();
-                arguments.push(Argument {
-                    flag,
-                    value: Value::String(value),
-                });
+                components.push(CommandComponent::StringArgument(flag, value));
                 i += 1;
             } else {
                 // Check if next token is a value (doesn't start with -)
                 let flag = token.clone();
                 if i + 1 < tokens.len() && !tokens[i + 1].starts_with('-') {
                     let value = tokens[i + 1].clone();
-                    arguments.push(Argument {
-                        flag,
-                        value: Value::String(value),
-                    });
+                    components.push(CommandComponent::StringArgument(flag, value));
                     i += 2;
                 } else {
                     // Boolean flag (no value)
-                    arguments.push(Argument {
-                        flag,
-                        value: Value::Checked(true),
-                    });
+                    components.push(CommandComponent::BoolArgument(flag, true));
                     i += 1;
                 }
             }
         } else {
             // Unexpected token (not starting with -)
             // Treat it as a positional argument
-            arguments.push(Argument {
-                flag: String::new(),
-                value: Value::String(token.clone()),
-            });
+            components.push(CommandComponent::StringArgument(
+                String::new(),
+                token.clone(),
+            ));
             i += 1;
         }
     }
 
-    Ok(ParsedCommand {
-        base_command,
-        arguments,
-    })
+    Ok(components)
 }
 
 #[cfg(test)]
@@ -86,43 +67,48 @@ mod tests {
     #[test]
     fn test_parse_simple_command() {
         let cmd = "kubectl get pods -l app=asset -o json";
-        let parsed = parse_command(cmd).unwrap();
+        let components = parse_command(cmd).unwrap();
 
-        assert_eq!(parsed.base_command, vec!["kubectl", "get", "pods"]);
-        assert_eq!(parsed.arguments.len(), 2);
-        assert_eq!(parsed.arguments[0].flag, "-l");
+        assert_eq!(components[0], CommandComponent::Base("kubectl".to_string()));
+        assert_eq!(components[1], CommandComponent::Base("get".to_string()));
+        assert_eq!(components[2], CommandComponent::Base("pods".to_string()));
         assert_eq!(
-            parsed.arguments[0].value,
-            Value::String("app=asset".to_string())
+            components[3],
+            CommandComponent::StringArgument("-l".to_string(), "app=asset".to_string())
         );
-        assert_eq!(parsed.arguments[1].flag, "-o");
-        assert_eq!(parsed.arguments[1].value, Value::String("json".to_string()));
+        assert_eq!(
+            components[4],
+            CommandComponent::StringArgument("-o".to_string(), "json".to_string())
+        );
     }
 
     #[test]
     fn test_parse_with_equals() {
         let cmd = "docker run --name=myapp --env=VAR=value image";
-        let parsed = parse_command(cmd).unwrap();
+        let components = parse_command(cmd).unwrap();
 
-        assert_eq!(parsed.base_command, vec!["docker", "run"]);
-        assert_eq!(parsed.arguments[0].flag, "--name");
+        assert_eq!(components[0], CommandComponent::Base("docker".to_string()));
+        assert_eq!(components[1], CommandComponent::Base("run".to_string()));
         assert_eq!(
-            parsed.arguments[0].value,
-            Value::String("myapp".to_string())
+            components[2],
+            CommandComponent::StringArgument("--name".to_string(), "myapp".to_string())
         );
-        assert_eq!(parsed.arguments[1].flag, "--env");
         assert_eq!(
-            parsed.arguments[1].value,
-            Value::String("VAR=value".to_string())
+            components[3],
+            CommandComponent::StringArgument("--env".to_string(), "VAR=value".to_string())
+        );
+        assert_eq!(
+            components[4],
+            CommandComponent::StringArgument(String::new(), "image".to_string())
         );
     }
 
     #[test]
     fn test_parse_boolean_flags() {
         let cmd = "ls -la /tmp";
-        let parsed = parse_command(cmd).unwrap();
+        let components = parse_command(cmd).unwrap();
 
-        assert_eq!(parsed.base_command, vec!["ls"]);
+        assert_eq!(components[0], CommandComponent::Base("ls".to_string()));
         // -la might be treated as a single flag with no value
         // or as two separate flags - depends on shlex behavior
     }
@@ -130,13 +116,15 @@ mod tests {
     #[test]
     fn test_parse_with_quotes() {
         let cmd = r#"kubectl get pods -o custom-columns='POD:.metadata.name,RS:.metadata.ownerReferences[0].name'"#;
-        let parsed = parse_command(cmd).unwrap();
+        let components = parse_command(cmd).unwrap();
 
-        assert_eq!(parsed.base_command, vec!["kubectl", "get", "pods"]);
-        assert_eq!(parsed.arguments[0].flag, "-o");
+        assert_eq!(components[0], CommandComponent::Base("kubectl".to_string()));
+        assert_eq!(components[1], CommandComponent::Base("get".to_string()));
+        assert_eq!(components[2], CommandComponent::Base("pods".to_string()));
         assert_eq!(
-            parsed.arguments[0].value,
-            Value::String(
+            components[3],
+            CommandComponent::StringArgument(
+                "-o".to_string(),
                 "custom-columns=POD:.metadata.name,RS:.metadata.ownerReferences[0].name"
                     .to_string()
             )
