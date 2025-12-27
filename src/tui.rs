@@ -381,9 +381,15 @@ fn run_app<B: ratatui::backend::Backend>(
                 match key.code {
                     KeyCode::Enter => app.confirm_input(),
                     KeyCode::Esc => app.cancel_input(),
-                    KeyCode::Char(c) => app.current_input.push(c),
                     KeyCode::Backspace => {
                         app.current_input.pop();
+                    }
+                    KeyCode::Char(c) => {
+                        if c == 'x' && key.modifiers.contains(event::KeyModifiers::CONTROL) {
+                            return Ok(true);
+                        } else {
+                            app.current_input.push(c)
+                        }
                     }
                     _ => {}
                 }
