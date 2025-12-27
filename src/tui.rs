@@ -261,32 +261,37 @@ fn run_app<B: ratatui::backend::Backend>(
                     )
                 };
 
-                // Name area (left 20 chars)
-                let name_area = ratatui::layout::Rect {
-                    x: row_area.x,
-                    y: row_area.y,
-                    width: 20,
-                    height: 1,
-                };
-
-                let name_widget = Paragraph::new(name_display).style(name_style);
-                f.render_widget(name_widget, name_area);
-
-                // Value display (right side) depends on CommandComponent type
+                // Value display depends on CommandComponent type
                 match component {
                     CommandComponent::Base(s) => {
-                        // Layout: [name 20 chars] [value flex]
-                        let value_area = ratatui::layout::Rect {
-                            x: row_area.x + 20,
-                            y: row_area.y,
-                            width: row_area.width.saturating_sub(20),
-                            height: 1,
+                        // Base component: full-width input (no name column)
+                        let display = if app.input_mode && i == selected {
+                            app.current_input.clone()
+                        } else {
+                            s.clone()
                         };
+                        let value_widget = Paragraph::new(display).style(value_style);
+                        f.render_widget(value_widget, row_area);
 
-                        let value_widget = Paragraph::new(s.clone()).style(value_style);
-                        f.render_widget(value_widget, value_area);
+                        // Show cursor when actively editing
+                        if app.input_mode && i == selected {
+                            f.set_cursor_position((
+                                row_area.x + app.current_input.len() as u16,
+                                row_area.y,
+                            ));
+                        }
                     }
                     CommandComponent::BoolArgument(_, checked) => {
+                        // Name area (left 20 chars)
+                        let name_area = ratatui::layout::Rect {
+                            x: row_area.x,
+                            y: row_area.y,
+                            width: 20,
+                            height: 1,
+                        };
+                        let name_widget = Paragraph::new(name_display).style(name_style);
+                        f.render_widget(name_widget, name_area);
+
                         // Layout: [name 20 chars] [checkbox flex]
                         let checkbox_area = ratatui::layout::Rect {
                             x: row_area.x + 20,
@@ -300,6 +305,16 @@ fn run_app<B: ratatui::backend::Backend>(
                         f.render_widget(checkbox_widget, checkbox_area);
                     }
                     CommandComponent::StringArgument(_, s) => {
+                        // Name area (left 20 chars)
+                        let name_area = ratatui::layout::Rect {
+                            x: row_area.x,
+                            y: row_area.y,
+                            width: 20,
+                            height: 1,
+                        };
+                        let name_widget = Paragraph::new(name_display).style(name_style);
+                        f.render_widget(name_widget, name_area);
+
                         let mut display = if app.input_mode && i == selected {
                             app.current_input.clone()
                         } else {

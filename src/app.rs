@@ -129,20 +129,33 @@ impl App {
 
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            // Only allow editing for String values
-            if let CommandComponent::StringArgument(_, value) = &self.components[selected] {
-                self.input_mode = true;
-                self.current_input = value.clone();
+            match &self.components[selected] {
+                CommandComponent::Base(value) => {
+                    self.input_mode = true;
+                    self.current_input = value.clone();
+                }
+                CommandComponent::StringArgument(_, value) => {
+                    self.input_mode = true;
+                    self.current_input = value.clone();
+                }
+                _ => {}
             }
         }
     }
 
     pub fn confirm_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            if let CommandComponent::StringArgument(flag, _) = &self.components[selected] {
-                self.components[selected] =
-                    CommandComponent::StringArgument(flag.clone(), self.current_input.clone());
-                self.update_preview();
+            match &self.components[selected] {
+                CommandComponent::Base(_) => {
+                    self.components[selected] = CommandComponent::Base(self.current_input.clone());
+                    self.update_preview();
+                }
+                CommandComponent::StringArgument(flag, _) => {
+                    self.components[selected] =
+                        CommandComponent::StringArgument(flag.clone(), self.current_input.clone());
+                    self.update_preview();
+                }
+                _ => {}
             }
         }
         self.input_mode = false;
@@ -166,9 +179,9 @@ impl App {
     pub fn handle_enter(&mut self) {
         if let Some(selected) = self.list_state.selected() {
             match &self.components[selected] {
+                CommandComponent::Base(_) => self.start_input(),
                 CommandComponent::StringArgument(_, _) => self.start_input(),
                 CommandComponent::BoolArgument(_, _) => self.toggle_checkbox(),
-                _ => {}
             }
         }
     }
