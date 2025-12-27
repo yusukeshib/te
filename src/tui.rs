@@ -138,6 +138,13 @@ fn run_app<B: ratatui::backend::Backend>(
             // Start from the cursor position (which is cursor_y + 1, leaving cursor_y for command preview)
             let start_y = app.cursor_y;
 
+            // if start_y is beyond the terminal height, adjust to fit
+            let start_y = if start_y >= area.height {
+                area.height.saturating_sub(app.components.len() as u16 + 2)
+            } else {
+                start_y
+            };
+
             // Render the current command preview on the line above (cursor_y - 1)
             if start_y > 0 {
                 let preview_area = ratatui::layout::Rect {
