@@ -160,20 +160,41 @@ fn run_app<B: ratatui::backend::Backend>(
                 let mut spans = vec![Span::raw("> ")];
 
                 for (i, component) in app.components.iter().enumerate() {
-                    let text = match component {
-                        CommandComponent::Base(s) => s.clone(),
-                        CommandComponent::StringArgument(flag, value) => {
-                            if flag.is_empty() {
-                                value.clone()
-                            } else {
-                                format!("{} {}", flag, value)
+                    let text = if app.input_mode && i == selected {
+                        // Show current input for the selected component when in input mode
+                        match component {
+                            CommandComponent::Base(_) => app.current_input.clone(),
+                            CommandComponent::StringArgument(flag, _) => {
+                                if flag.is_empty() {
+                                    app.current_input.clone()
+                                } else {
+                                    format!("{} {}", flag, app.current_input)
+                                }
+                            }
+                            CommandComponent::BoolArgument(flag, checked) => {
+                                if *checked {
+                                    flag.clone()
+                                } else {
+                                    String::new()
+                                }
                             }
                         }
-                        CommandComponent::BoolArgument(flag, checked) => {
-                            if *checked {
-                                flag.clone()
-                            } else {
-                                String::new()
+                    } else {
+                        match component {
+                            CommandComponent::Base(s) => s.clone(),
+                            CommandComponent::StringArgument(flag, value) => {
+                                if flag.is_empty() {
+                                    value.clone()
+                                } else {
+                                    format!("{} {}", flag, value)
+                                }
+                            }
+                            CommandComponent::BoolArgument(flag, checked) => {
+                                if *checked {
+                                    flag.clone()
+                                } else {
+                                    String::new()
+                                }
                             }
                         }
                     };
@@ -181,7 +202,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     if !text.is_empty() {
                         let style = if i == selected {
                             if app.input_mode {
-                                Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
+                                Style::default().add_modifier(Modifier::BOLD)
                             } else {
                                 Style::default().add_modifier(Modifier::REVERSED)
                             }
@@ -242,10 +263,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 // Apply style based on selection and input mode
                 let (name_style, value_style) = if i == selected {
                     if app.input_mode {
-                        // Actively editing: reversed with bold
+                        // Actively editing: bold without reversed for subtle input field
                         (
-                            Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
-                            Style::default().add_modifier(Modifier::REVERSED),
+                            Style::default().add_modifier(Modifier::DIM),
+                            Style::default().add_modifier(Modifier::BOLD),
                         )
                     } else {
                         // Selected but not editing: reversed
