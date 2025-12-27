@@ -6,6 +6,7 @@ pub enum CommandComponent {
     Base(String),
     Flag(String),
     Value(String),
+    LineBreak,
 }
 
 pub struct App {
@@ -27,7 +28,13 @@ impl App {
     ) -> Self {
         let mut list_state = ListState::default();
         if !components.is_empty() {
-            list_state.select(Some(0));
+            // Select first non-LineBreak component
+            let first_selectable = components
+                .iter()
+                .position(|c| !matches!(c, CommandComponent::LineBreak));
+            if let Some(idx) = first_selectable {
+                list_state.select(Some(idx));
+            }
         }
 
         let preview_command = Self::build_preview(&components);
@@ -75,6 +82,7 @@ impl App {
                 CommandComponent::Base(s) => parts.push(s.clone()),
                 CommandComponent::Flag(s) => parts.push(s.clone()),
                 CommandComponent::Value(s) => parts.push(s.clone()),
+                CommandComponent::LineBreak => {} // Skip line breaks in preview
             }
         }
 
@@ -85,38 +93,87 @@ impl App {
         self.preview_command = Self::build_preview(&self.components);
     }
 
+    pub fn build_final_command(&self) -> String {
+        let mut result = String::new();
+
+        for (idx, component) in self.components.iter().enumerate() {
+            match component {
+                CommandComponent::Base(s)
+                | CommandComponent::Flag(s)
+                | CommandComponent::Value(s) => {
+                    if idx > 0
+                        && !matches!(
+                            self.components.get(idx - 1),
+                            Some(CommandComponent::LineBreak)
+                        )
+                    {
+                        result.push(' ');
+                    }
+                    result.push_str(s);
+                }
+                CommandComponent::LineBreak => {
+                    result.push_str(" \\\n");
+                }
+            }
+        }
+
+        result
+    }
+
     pub fn next(&mut self) {
         if self.components.is_empty() {
             return;
         }
-        let i = match self.list_state.selected() {
-            Some(i) => {
-                if i >= self.components.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
+        let start = match self.list_state.selected() {
+            Some(i) => i,
             None => 0,
         };
-        self.list_state.select(Some(i));
+
+        // Find next non-LineBreak component
+        let mut i = start;
+        loop {
+            i = if i >= self.components.len() - 1 {
+                0
+            } else {
+                i + 1
+            };
+            if i == start {
+                // Wrapped around to start, no selectable components
+                return;
+            }
+            if !matches!(self.components[i], CommandComponent::LineBreak) {
+                self.list_state.select(Some(i));
+                return;
+            }
+        }
     }
 
     pub fn previous(&mut self) {
         if self.components.is_empty() {
             return;
         }
-        let i = match self.list_state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.components.len() - 1
-                } else {
-                    i - 1
-                }
-            }
+        let start = match self.list_state.selected() {
+            Some(i) => i,
             None => 0,
         };
-        self.list_state.select(Some(i));
+
+        // Find previous non-LineBreak component
+        let mut i = start;
+        loop {
+            i = if i == 0 {
+                self.components.len() - 1
+            } else {
+                i - 1
+            };
+            if i == start {
+                // Wrapped around to start, no selectable components
+                return;
+            }
+            if !matches!(self.components[i], CommandComponent::LineBreak) {
+                self.list_state.select(Some(i));
+                return;
+            }
+        }
     }
 
     pub fn start_input(&mut self) {
@@ -133,6 +190,10 @@ impl App {
                 CommandComponent::Value(value) => {
                     self.input_mode = true;
                     self.current_input = value.clone();
+                }
+                CommandComponent::LineBreak => {
+                    // LineBreak components should never be selected
+                    unreachable!("LineBreak components should be skipped in navigation")
                 }
             }
         }
@@ -152,6 +213,10 @@ impl App {
                 CommandComponent::Value(_) => {
                     self.components[selected] = CommandComponent::Value(self.current_input.clone());
                     self.update_preview();
+                }
+                CommandComponent::LineBreak => {
+                    // LineBreak components should never be selected
+                    unreachable!("LineBreak components should be skipped in navigation")
                 }
             }
         }

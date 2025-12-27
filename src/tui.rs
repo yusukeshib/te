@@ -119,7 +119,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     match result {
         Ok(should_execute) => {
             if should_execute {
-                Ok(Some(app.preview_command))
+                Ok(Some(app.build_final_command()))
             } else {
                 Ok(None)
             }
@@ -154,6 +154,11 @@ fn run_app<B: ratatui::backend::Backend>(
             let mut target_cursor_offset = None;
 
             for (i, component) in app.components.iter().enumerate() {
+                // Skip line breaks in rendering
+                if matches!(component, CommandComponent::LineBreak) {
+                    continue;
+                }
+
                 let text = if app.input_mode && i == selected {
                     // Show current input for the selected component when in input mode
                     app.current_input.clone()
@@ -162,6 +167,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         CommandComponent::Base(s) => s.clone(),
                         CommandComponent::Flag(s) => s.clone(),
                         CommandComponent::Value(s) => s.clone(),
+                        CommandComponent::LineBreak => unreachable!(), // Already skipped above
                     }
                 };
 
