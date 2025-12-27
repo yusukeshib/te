@@ -4,8 +4,8 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandComponent {
     Base(String),
-    StringArgument(String, String),
-    BoolArgument(String, bool),
+    Flag(String),
+    Value(String),
 }
 
 pub struct App {
@@ -32,23 +32,26 @@ impl App {
 
         let preview_command = Self::build_preview(&components);
 
-        // Build mapping of history options
+        // Build mapping of history options for Value components
         let mut history_options = HashMap::new();
         let mut current_option_index = HashMap::new();
 
-        for (idx, component) in components.iter().enumerate() {
-            match component {
-                CommandComponent::StringArgument(flag, current) => {
-                    if let Some(values) = history.get(flag) {
-                        if !values.is_empty() {
-                            history_options.insert(idx, values.clone());
-                            // Set index if current value exists in history
-                            let option_idx = values.iter().position(|v| v == current).unwrap_or(0);
-                            current_option_index.insert(idx, option_idx);
+        // Look for Flag followed by Value to build history
+        for idx in 0..components.len() {
+            if let CommandComponent::Value(current) = &components[idx] {
+                // Check if previous component is a Flag
+                if idx > 0 {
+                    if let CommandComponent::Flag(flag) = &components[idx - 1] {
+                        if let Some(values) = history.get(flag) {
+                            if !values.is_empty() {
+                                history_options.insert(idx, values.clone());
+                                let option_idx =
+                                    values.iter().position(|v| v == current).unwrap_or(0);
+                                current_option_index.insert(idx, option_idx);
+                            }
                         }
                     }
                 }
-                _ => {}
             }
         }
 
@@ -69,20 +72,9 @@ impl App {
 
         for component in components.iter() {
             match component {
-                CommandComponent::Base(s) => {
-                    parts.push(s.clone());
-                }
-                CommandComponent::StringArgument(flag, value) => {
-                    if !flag.is_empty() {
-                        parts.push(flag.clone());
-                    }
-                    parts.push(value.clone());
-                }
-                CommandComponent::BoolArgument(flag, checked) => {
-                    if *checked {
-                        parts.push(flag.clone());
-                    }
-                }
+                CommandComponent::Base(s) => parts.push(s.clone()),
+                CommandComponent::Flag(s) => parts.push(s.clone()),
+                CommandComponent::Value(s) => parts.push(s.clone()),
             }
         }
 
@@ -134,11 +126,14 @@ impl App {
                     self.input_mode = true;
                     self.current_input = value.clone();
                 }
-                CommandComponent::StringArgument(_, value) => {
+                CommandComponent::Flag(value) => {
                     self.input_mode = true;
                     self.current_input = value.clone();
                 }
-                _ => {}
+                CommandComponent::Value(value) => {
+                    self.input_mode = true;
+                    self.current_input = value.clone();
+                }
             }
         }
     }
@@ -150,12 +145,14 @@ impl App {
                     self.components[selected] = CommandComponent::Base(self.current_input.clone());
                     self.update_preview();
                 }
-                CommandComponent::StringArgument(flag, _) => {
-                    self.components[selected] =
-                        CommandComponent::StringArgument(flag.clone(), self.current_input.clone());
+                CommandComponent::Flag(_) => {
+                    self.components[selected] = CommandComponent::Flag(self.current_input.clone());
                     self.update_preview();
                 }
-                _ => {}
+                CommandComponent::Value(_) => {
+                    self.components[selected] = CommandComponent::Value(self.current_input.clone());
+                    self.update_preview();
+                }
             }
         }
         self.input_mode = false;
@@ -167,31 +164,13 @@ impl App {
         self.current_input.clear();
     }
 
-    pub fn toggle_checkbox(&mut self) {
-        if let Some(selected) = self.list_state.selected() {
-            if let CommandComponent::BoolArgument(flag, checked) = &self.components[selected] {
-                self.components[selected] = CommandComponent::BoolArgument(flag.clone(), !checked);
-                self.update_preview();
-            }
-        }
-    }
-
     pub fn handle_enter(&mut self) {
-        if let Some(selected) = self.list_state.selected() {
-            match &self.components[selected] {
-                CommandComponent::Base(_) => self.start_input(),
-                CommandComponent::StringArgument(_, _) => self.start_input(),
-                CommandComponent::BoolArgument(_, _) => self.toggle_checkbox(),
-            }
-        }
+        self.start_input();
     }
 
     pub fn next_option(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            if !matches!(
-                self.components[selected],
-                CommandComponent::StringArgument(_, _)
-            ) {
+            if !matches!(self.components[selected], CommandComponent::Value(_)) {
                 return;
             }
 
@@ -208,10 +187,7 @@ impl App {
                 let next_idx = (current_idx + 1) % options.len();
 
                 self.current_option_index.insert(selected, next_idx);
-                if let CommandComponent::StringArgument(flag, _) = &self.components[selected] {
-                    self.components[selected] =
-                        CommandComponent::StringArgument(flag.clone(), options[next_idx].clone());
-                }
+                self.components[selected] = CommandComponent::Value(options[next_idx].clone());
                 self.update_preview();
             }
         }
@@ -219,10 +195,7 @@ impl App {
 
     pub fn previous_option(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            if !matches!(
-                self.components[selected],
-                CommandComponent::StringArgument(_, _)
-            ) {
+            if !matches!(self.components[selected], CommandComponent::Value(_)) {
                 return;
             }
 
@@ -243,10 +216,7 @@ impl App {
                 };
 
                 self.current_option_index.insert(selected, prev_idx);
-                if let CommandComponent::StringArgument(flag, _) = &self.components[selected] {
-                    self.components[selected] =
-                        CommandComponent::StringArgument(flag.clone(), options[prev_idx].clone());
-                }
+                self.components[selected] = CommandComponent::Value(options[prev_idx].clone());
                 self.update_preview();
             }
         }

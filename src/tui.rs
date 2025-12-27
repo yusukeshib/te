@@ -156,40 +156,12 @@ fn run_app<B: ratatui::backend::Backend>(
             for (i, component) in app.components.iter().enumerate() {
                 let text = if app.input_mode && i == selected {
                     // Show current input for the selected component when in input mode
-                    match component {
-                        CommandComponent::Base(_) => app.current_input.clone(),
-                        CommandComponent::StringArgument(flag, _) => {
-                            if flag.is_empty() {
-                                app.current_input.clone()
-                            } else {
-                                format!("{} {}", flag, app.current_input)
-                            }
-                        }
-                        CommandComponent::BoolArgument(flag, checked) => {
-                            if *checked {
-                                flag.clone()
-                            } else {
-                                String::new()
-                            }
-                        }
-                    }
+                    app.current_input.clone()
                 } else {
                     match component {
                         CommandComponent::Base(s) => s.clone(),
-                        CommandComponent::StringArgument(flag, value) => {
-                            if flag.is_empty() {
-                                value.clone()
-                            } else {
-                                format!("{} {}", flag, value)
-                            }
-                        }
-                        CommandComponent::BoolArgument(flag, checked) => {
-                            if *checked {
-                                flag.clone()
-                            } else {
-                                String::new()
-                            }
-                        }
+                        CommandComponent::Flag(s) => s.clone(),
+                        CommandComponent::Value(s) => s.clone(),
                     }
                 };
 
@@ -206,23 +178,7 @@ fn run_app<B: ratatui::backend::Backend>(
 
                     // Calculate cursor position if this is the selected component in input mode
                     if app.input_mode && i == selected {
-                        // For StringArgument with a flag, cursor should be after the flag
-                        if let CommandComponent::StringArgument(flag, _) = component {
-                            if !flag.is_empty() {
-                                target_cursor_offset = Some(
-                                    cursor_offset
-                                        + flag.len() as u16
-                                        + 1
-                                        + app.current_input.len() as u16,
-                                );
-                            } else {
-                                target_cursor_offset =
-                                    Some(cursor_offset + app.current_input.len() as u16);
-                            }
-                        } else {
-                            target_cursor_offset =
-                                Some(cursor_offset + app.current_input.len() as u16);
-                        }
+                        target_cursor_offset = Some(cursor_offset + app.current_input.len() as u16);
                     }
 
                     let text_len = text.len() as u16;
@@ -272,7 +228,6 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Left => app.previous(),
                     KeyCode::Up => app.previous_option(),
                     KeyCode::Down => app.next_option(),
-                    KeyCode::Char(' ') => app.toggle_checkbox(),
                     KeyCode::Enter => app.handle_enter(),
                     KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(true);

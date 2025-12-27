@@ -144,13 +144,21 @@ pub fn load_history_for_command(base_command: &[String]) -> Result<HashMap<Strin
         }
 
         if let Ok(components) = parse_command(command) {
-            for component in components {
-                if let CommandComponent::StringArgument(flag, value) = component {
-                    values
-                        .entry(flag)
-                        .or_insert_with(HashSet::new)
-                        .insert(value);
+            // Track Flag followed by Value
+            let mut i = 0;
+            while i < components.len() {
+                if let CommandComponent::Flag(flag) = &components[i] {
+                    // Check if next component is a Value
+                    if i + 1 < components.len() {
+                        if let CommandComponent::Value(value) = &components[i + 1] {
+                            values
+                                .entry(flag.clone())
+                                .or_insert_with(HashSet::new)
+                                .insert(value.clone());
+                        }
+                    }
                 }
+                i += 1;
             }
         }
 

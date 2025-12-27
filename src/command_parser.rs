@@ -31,28 +31,27 @@ pub fn parse_command(command_str: &str) -> Result<Vec<CommandComponent>> {
             if let Some(eq_pos) = token.find('=') {
                 let flag = token[..eq_pos].to_string();
                 let value = token[eq_pos + 1..].to_string();
-                components.push(CommandComponent::StringArgument(flag, value));
+                components.push(CommandComponent::Flag(flag));
+                components.push(CommandComponent::Value(value));
                 i += 1;
             } else {
                 // Check if next token is a value (doesn't start with -)
                 let flag = token.clone();
                 if i + 1 < tokens.len() && !tokens[i + 1].starts_with('-') {
                     let value = tokens[i + 1].clone();
-                    components.push(CommandComponent::StringArgument(flag, value));
+                    components.push(CommandComponent::Flag(flag));
+                    components.push(CommandComponent::Value(value));
                     i += 2;
                 } else {
                     // Boolean flag (no value)
-                    components.push(CommandComponent::BoolArgument(flag, true));
+                    components.push(CommandComponent::Flag(flag));
                     i += 1;
                 }
             }
         } else {
             // Unexpected token (not starting with -)
             // Treat it as a positional argument
-            components.push(CommandComponent::StringArgument(
-                String::new(),
-                token.clone(),
-            ));
+            components.push(CommandComponent::Value(token.clone()));
             i += 1;
         }
     }
@@ -72,14 +71,13 @@ mod tests {
         assert_eq!(components[0], CommandComponent::Base("kubectl".to_string()));
         assert_eq!(components[1], CommandComponent::Base("get".to_string()));
         assert_eq!(components[2], CommandComponent::Base("pods".to_string()));
-        assert_eq!(
-            components[3],
-            CommandComponent::StringArgument("-l".to_string(), "app=asset".to_string())
-        );
+        assert_eq!(components[3], CommandComponent::Flag("-l".to_string()));
         assert_eq!(
             components[4],
-            CommandComponent::StringArgument("-o".to_string(), "json".to_string())
+            CommandComponent::Value("app=asset".to_string())
         );
+        assert_eq!(components[5], CommandComponent::Flag("-o".to_string()));
+        assert_eq!(components[6], CommandComponent::Value("json".to_string()));
     }
 
     #[test]
@@ -89,18 +87,14 @@ mod tests {
 
         assert_eq!(components[0], CommandComponent::Base("docker".to_string()));
         assert_eq!(components[1], CommandComponent::Base("run".to_string()));
+        assert_eq!(components[2], CommandComponent::Flag("--name".to_string()));
+        assert_eq!(components[3], CommandComponent::Value("myapp".to_string()));
+        assert_eq!(components[4], CommandComponent::Flag("--env".to_string()));
         assert_eq!(
-            components[2],
-            CommandComponent::StringArgument("--name".to_string(), "myapp".to_string())
+            components[5],
+            CommandComponent::Value("VAR=value".to_string())
         );
-        assert_eq!(
-            components[3],
-            CommandComponent::StringArgument("--env".to_string(), "VAR=value".to_string())
-        );
-        assert_eq!(
-            components[4],
-            CommandComponent::StringArgument(String::new(), "image".to_string())
-        );
+        assert_eq!(components[6], CommandComponent::Value("image".to_string()));
     }
 
     #[test]
@@ -121,10 +115,10 @@ mod tests {
         assert_eq!(components[0], CommandComponent::Base("kubectl".to_string()));
         assert_eq!(components[1], CommandComponent::Base("get".to_string()));
         assert_eq!(components[2], CommandComponent::Base("pods".to_string()));
+        assert_eq!(components[3], CommandComponent::Flag("-o".to_string()));
         assert_eq!(
-            components[3],
-            CommandComponent::StringArgument(
-                "-o".to_string(),
+            components[4],
+            CommandComponent::Value(
                 "custom-columns=POD:.metadata.name,RS:.metadata.ownerReferences[0].name"
                     .to_string()
             )
