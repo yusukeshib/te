@@ -251,20 +251,4 @@ impl App {
             }
         }
     }
-
-    pub fn get_option_status(&self, arg_index: usize) -> Option<(usize, usize)> {
-        if let Some(options) = self.history_options.get(&arg_index) {
-            if options.is_empty() {
-                return None;
-            }
-            let current = self
-                .current_option_index
-                .get(&arg_index)
-                .copied()
-                .unwrap_or(0);
-            Some((current + 1, options.len()))
-        } else {
-            None
-        }
-    }
 }

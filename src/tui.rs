@@ -136,239 +136,110 @@ fn run_app<B: ratatui::backend::Backend>(
         terminal.draw(|f| {
             let area = f.area();
 
-            // Start from the cursor position (which is cursor_y + 1, leaving cursor_y for command preview)
+            // Start from the cursor position
             let start_y = app.cursor_y;
 
-            // if start_y is beyond the terminal height, adjust to fit
-            let start_y = if start_y >= area.height {
-                area.height.saturating_sub(app.components.len() as u16 + 2)
-            } else {
-                start_y
-            };
-
-            // Render the current command preview on the line above (cursor_y - 1)
-            if start_y > 0 {
-                let preview_area = ratatui::layout::Rect {
-                    x: area.x,
-                    y: start_y - 1,
-                    width: area.width,
-                    height: 1,
-                };
-
-                // Build styled preview with highlighted selected component
-                let selected = app.list_state.selected().unwrap_or(0);
-                let mut spans = vec![Span::raw("> ")];
-
-                for (i, component) in app.components.iter().enumerate() {
-                    let text = if app.input_mode && i == selected {
-                        // Show current input for the selected component when in input mode
-                        match component {
-                            CommandComponent::Base(_) => app.current_input.clone(),
-                            CommandComponent::StringArgument(flag, _) => {
-                                if flag.is_empty() {
-                                    app.current_input.clone()
-                                } else {
-                                    format!("{} {}", flag, app.current_input)
-                                }
-                            }
-                            CommandComponent::BoolArgument(flag, checked) => {
-                                if *checked {
-                                    flag.clone()
-                                } else {
-                                    String::new()
-                                }
-                            }
-                        }
-                    } else {
-                        match component {
-                            CommandComponent::Base(s) => s.clone(),
-                            CommandComponent::StringArgument(flag, value) => {
-                                if flag.is_empty() {
-                                    value.clone()
-                                } else {
-                                    format!("{} {}", flag, value)
-                                }
-                            }
-                            CommandComponent::BoolArgument(flag, checked) => {
-                                if *checked {
-                                    flag.clone()
-                                } else {
-                                    String::new()
-                                }
-                            }
-                        }
-                    };
-
-                    if !text.is_empty() {
-                        let style = if i == selected {
-                            if app.input_mode {
-                                Style::default().add_modifier(Modifier::BOLD)
-                            } else {
-                                Style::default().add_modifier(Modifier::REVERSED)
-                            }
-                        } else {
-                            Style::default()
-                        };
-
-                        spans.push(Span::styled(text, style));
-                        spans.push(Span::raw(" "));
-                    }
-                }
-
-                let preview = Paragraph::new(Line::from(spans));
-                f.render_widget(preview, preview_area);
-            }
-
-            // Help text on first line
-            let help_area = ratatui::layout::Rect {
+            // Render only the preview line as the main UI
+            let preview_area = ratatui::layout::Rect {
                 x: area.x,
                 y: start_y,
                 width: area.width,
                 height: 1,
             };
-            let help = Paragraph::new(
-                "↑/↓: navigate, ←/→: history, Space: toggle, Enter: edit, Ctrl+X: execute, ESC: cancel",
-            )
-            .style(Style::default().add_modifier(Modifier::DIM));
-            f.render_widget(help, help_area);
 
-            // Render each component
+            // Build styled preview with highlighted selected component
             let selected = app.list_state.selected().unwrap_or(0);
+            let mut spans = vec![Span::raw("> ")];
+            let mut cursor_offset = 2u16; // Start after "> "
+            let mut target_cursor_offset = None;
+
             for (i, component) in app.components.iter().enumerate() {
-                let row_area = ratatui::layout::Rect {
-                    x: area.x,
-                    y: start_y + 1 + i as u16,
-                    width: area.width,
-                    height: 1,
-                };
-
-                // Component name (max 20 chars)
-                let name_display = match component {
-                    CommandComponent::Base(s) => format!("base: {}", s),
-                    CommandComponent::StringArgument(flag, _) => {
-                        if flag.is_empty() {
-                            "(positional)".to_string()
-                        } else {
-                            flag.clone()
-                        }
-                    }
-                    CommandComponent::BoolArgument(flag, _) => flag.clone(),
-                };
-                let name_display = if name_display.len() > 20 {
-                    format!("{}...", &name_display[..17])
-                } else {
-                    name_display
-                };
-
-                // Apply style based on selection and input mode
-                let (name_style, value_style) = if i == selected {
-                    if app.input_mode {
-                        // Actively editing: bold without reversed for subtle input field
-                        (
-                            Style::default().add_modifier(Modifier::DIM),
-                            Style::default().add_modifier(Modifier::BOLD),
-                        )
-                    } else {
-                        // Selected but not editing: reversed
-                        (
-                            Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
-                            Style::default().add_modifier(Modifier::REVERSED),
-                        )
-                    }
-                } else {
-                    (
-                        Style::default().add_modifier(Modifier::DIM),
-                        Style::default(),
-                    )
-                };
-
-                // Value display depends on CommandComponent type
-                match component {
-                    CommandComponent::Base(s) => {
-                        // Base component: full-width input (no name column)
-                        let display = if app.input_mode && i == selected {
-                            app.current_input.clone()
-                        } else {
-                            s.clone()
-                        };
-                        let value_widget = Paragraph::new(display).style(value_style);
-                        f.render_widget(value_widget, row_area);
-
-                        // Show cursor when actively editing
-                        if app.input_mode && i == selected {
-                            f.set_cursor_position((
-                                row_area.x + app.current_input.len() as u16,
-                                row_area.y,
-                            ));
-                        }
-                    }
-                    CommandComponent::BoolArgument(_, checked) => {
-                        // Name area (left 20 chars)
-                        let name_area = ratatui::layout::Rect {
-                            x: row_area.x,
-                            y: row_area.y,
-                            width: 20,
-                            height: 1,
-                        };
-                        let name_widget = Paragraph::new(name_display).style(name_style);
-                        f.render_widget(name_widget, name_area);
-
-                        // Layout: [name 20 chars] [checkbox flex]
-                        let checkbox_area = ratatui::layout::Rect {
-                            x: row_area.x + 20,
-                            y: row_area.y,
-                            width: row_area.width.saturating_sub(20),
-                            height: 1,
-                        };
-
-                        let display = if *checked { "TRUE" } else { "FALSE" };
-                        let checkbox_widget = Paragraph::new(display).style(value_style);
-                        f.render_widget(checkbox_widget, checkbox_area);
-                    }
-                    CommandComponent::StringArgument(_, s) => {
-                        // Name area (left 20 chars)
-                        let name_area = ratatui::layout::Rect {
-                            x: row_area.x,
-                            y: row_area.y,
-                            width: 20,
-                            height: 1,
-                        };
-                        let name_widget = Paragraph::new(name_display).style(name_style);
-                        f.render_widget(name_widget, name_area);
-
-                        let mut display = if app.input_mode && i == selected {
-                            app.current_input.clone()
-                        } else {
-                            s.clone()
-                        };
-
-                        // Add (X/Y) if history options exist
-                        if !app.input_mode || i != selected {
-                            if let Some((current, total)) = app.get_option_status(i) {
-                                display = format!("{} ({}/{})", display, current, total);
+                let text = if app.input_mode && i == selected {
+                    // Show current input for the selected component when in input mode
+                    match component {
+                        CommandComponent::Base(_) => app.current_input.clone(),
+                        CommandComponent::StringArgument(flag, _) => {
+                            if flag.is_empty() {
+                                app.current_input.clone()
+                            } else {
+                                format!("{} {}", flag, app.current_input)
                             }
                         }
-
-                        // Layout: [name 20 chars] [value flex]
-                        let value_area = ratatui::layout::Rect {
-                            x: row_area.x + 20,
-                            y: row_area.y,
-                            width: row_area.width.saturating_sub(20),
-                            height: 1,
-                        };
-
-                        let value_widget = Paragraph::new(display).style(value_style);
-                        f.render_widget(value_widget, value_area);
-
-                        // Show cursor when actively editing
-                        if app.input_mode && i == selected {
-                            f.set_cursor_position((
-                                value_area.x + app.current_input.len() as u16,
-                                value_area.y,
-                            ));
+                        CommandComponent::BoolArgument(flag, checked) => {
+                            if *checked {
+                                flag.clone()
+                            } else {
+                                String::new()
+                            }
+                        }
+                    }
+                } else {
+                    match component {
+                        CommandComponent::Base(s) => s.clone(),
+                        CommandComponent::StringArgument(flag, value) => {
+                            if flag.is_empty() {
+                                value.clone()
+                            } else {
+                                format!("{} {}", flag, value)
+                            }
+                        }
+                        CommandComponent::BoolArgument(flag, checked) => {
+                            if *checked {
+                                flag.clone()
+                            } else {
+                                String::new()
+                            }
                         }
                     }
                 };
+
+                if !text.is_empty() {
+                    let style = if i == selected {
+                        if app.input_mode {
+                            Style::default().add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().add_modifier(Modifier::REVERSED)
+                        }
+                    } else {
+                        Style::default()
+                    };
+
+                    // Calculate cursor position if this is the selected component in input mode
+                    if app.input_mode && i == selected {
+                        // For StringArgument with a flag, cursor should be after the flag
+                        if let CommandComponent::StringArgument(flag, _) = component {
+                            if !flag.is_empty() {
+                                target_cursor_offset = Some(
+                                    cursor_offset
+                                        + flag.len() as u16
+                                        + 1
+                                        + app.current_input.len() as u16,
+                                );
+                            } else {
+                                target_cursor_offset =
+                                    Some(cursor_offset + app.current_input.len() as u16);
+                            }
+                        } else {
+                            target_cursor_offset =
+                                Some(cursor_offset + app.current_input.len() as u16);
+                        }
+                    }
+
+                    let text_len = text.len() as u16;
+                    spans.push(Span::styled(text, style));
+                    spans.push(Span::raw(" "));
+                    cursor_offset += text_len + 1;
+                }
+            }
+
+            let preview = Paragraph::new(Line::from(spans));
+            f.render_widget(preview, preview_area);
+
+            // Set cursor position if in input mode
+            if app.input_mode {
+                if let Some(offset) = target_cursor_offset {
+                    f.set_cursor_position((preview_area.x + offset, preview_area.y));
+                }
             }
         })?;
 
@@ -397,10 +268,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
-                    KeyCode::Down => app.next(),
-                    KeyCode::Up => app.previous(),
-                    KeyCode::Right => app.next_option(),
-                    KeyCode::Left => app.previous_option(),
+                    KeyCode::Right => app.next(),
+                    KeyCode::Left => app.previous(),
+                    KeyCode::Up => app.previous_option(),
+                    KeyCode::Down => app.next_option(),
                     KeyCode::Char(' ') => app.toggle_checkbox(),
                     KeyCode::Enter => app.handle_enter(),
                     KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
