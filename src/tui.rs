@@ -9,6 +9,7 @@ use ratatui::{
     Terminal, TerminalOptions, Viewport,
     backend::CrosstermBackend,
     style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::Paragraph,
 };
 use std::collections::HashMap;
@@ -153,9 +154,47 @@ fn run_app<B: ratatui::backend::Backend>(
                     width: area.width,
                     height: 1,
                 };
-                let preview_text = format!("> {}", app.preview_command);
-                let preview = Paragraph::new(preview_text)
-                    .style(Style::default().fg(Color::White));
+
+                // Build styled preview with highlighted selected component
+                let selected = app.list_state.selected().unwrap_or(0);
+                let mut spans = vec![Span::raw("> ")];
+
+                for (i, component) in app.components.iter().enumerate() {
+                    let text = match component {
+                        CommandComponent::Base(s) => s.clone(),
+                        CommandComponent::StringArgument(flag, value) => {
+                            if flag.is_empty() {
+                                value.clone()
+                            } else {
+                                format!("{} {}", flag, value)
+                            }
+                        }
+                        CommandComponent::BoolArgument(flag, checked) => {
+                            if *checked {
+                                flag.clone()
+                            } else {
+                                String::new()
+                            }
+                        }
+                    };
+
+                    if !text.is_empty() {
+                        let style = if i == selected {
+                            if app.input_mode {
+                                Style::default().fg(Color::White).bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                            } else {
+                                Style::default().fg(Color::White).bg(Color::Rgb(60, 60, 60)).add_modifier(Modifier::BOLD)
+                            }
+                        } else {
+                            Style::default().fg(Color::White)
+                        };
+
+                        spans.push(Span::styled(text, style));
+                        spans.push(Span::raw(" "));
+                    }
+                }
+
+                let preview = Paragraph::new(Line::from(spans));
                 f.render_widget(preview, preview_area);
             }
 
