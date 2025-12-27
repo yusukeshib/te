@@ -8,7 +8,7 @@ use crossterm::{
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
     backend::CrosstermBackend,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -181,12 +181,12 @@ fn run_app<B: ratatui::backend::Backend>(
                     if !text.is_empty() {
                         let style = if i == selected {
                             if app.input_mode {
-                                Style::default().fg(Color::White).bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                                Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
                             } else {
-                                Style::default().fg(Color::White).bg(Color::Rgb(60, 60, 60)).add_modifier(Modifier::BOLD)
+                                Style::default().add_modifier(Modifier::REVERSED)
                             }
                         } else {
-                            Style::default().fg(Color::White)
+                            Style::default()
                         };
 
                         spans.push(Span::styled(text, style));
@@ -208,7 +208,7 @@ fn run_app<B: ratatui::backend::Backend>(
             let help = Paragraph::new(
                 "↑/↓: navigate, ←/→: history, Space: toggle, Enter: edit, Ctrl+X: execute, ESC: cancel",
             )
-            .style(Style::default().fg(Color::DarkGray));
+            .style(Style::default().add_modifier(Modifier::DIM));
             f.render_widget(help, help_area);
 
             // Render each component
@@ -242,22 +242,22 @@ fn run_app<B: ratatui::backend::Backend>(
                 // Apply style based on selection and input mode
                 let (name_style, value_style) = if i == selected {
                     if app.input_mode {
-                        // Actively editing: use dark background with white text
+                        // Actively editing: reversed with bold
                         (
-                            Style::default().fg(Color::White).bg(Color::DarkGray).add_modifier(Modifier::BOLD),
-                            Style::default().fg(Color::White).bg(Color::DarkGray),
+                            Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
+                            Style::default().add_modifier(Modifier::REVERSED),
                         )
                     } else {
-                        // Selected but not editing: darker gray background with bold
+                        // Selected but not editing: reversed
                         (
-                            Style::default().fg(Color::White).bg(Color::Rgb(60, 60, 60)).add_modifier(Modifier::BOLD),
-                            Style::default().fg(Color::White).bg(Color::Rgb(60, 60, 60)).add_modifier(Modifier::BOLD),
+                            Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD),
+                            Style::default().add_modifier(Modifier::REVERSED),
                         )
                     }
                 } else {
                     (
-                        Style::default().fg(Color::Gray),
-                        Style::default().fg(Color::White),
+                        Style::default().add_modifier(Modifier::DIM),
+                        Style::default(),
                     )
                 };
 
