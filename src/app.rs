@@ -20,7 +20,7 @@ pub struct App {
     pub cursor_y: u16,
 }
 
-fn quote_if_needed(s: &str) -> String {
+pub fn quote_if_needed(s: &str) -> String {
     if s.contains(' ') {
         // Escape existing double quotes
         let escaped = s.replace('"', "\\\"");

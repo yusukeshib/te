@@ -8,14 +8,14 @@ use crossterm::{
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
     backend::CrosstermBackend,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 
-use crate::app::{App, CommandComponent};
+use crate::app::{App, CommandComponent, quote_if_needed};
 use crate::command_parser::parse_command;
 
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
@@ -161,12 +161,12 @@ fn run_app<B: ratatui::backend::Backend>(
 
                 let text = if app.input_mode && i == selected {
                     // Show current input for the selected component when in input mode
-                    app.current_input.clone()
+                    quote_if_needed(&app.current_input)
                 } else {
                     match component {
-                        CommandComponent::Base(s) => s.clone(),
-                        CommandComponent::Flag(s) => s.clone(),
-                        CommandComponent::Value(s) => s.clone(),
+                        CommandComponent::Base(s) => quote_if_needed(s),
+                        CommandComponent::Flag(s) => quote_if_needed(s),
+                        CommandComponent::Value(s) => quote_if_needed(s),
                         CommandComponent::LineBreak => unreachable!(), // Already skipped above
                     }
                 };
@@ -189,8 +189,26 @@ fn run_app<B: ratatui::backend::Backend>(
 
                     let text_len = text.len() as u16;
                     spans.push(Span::styled(text, style));
+
+                    // Add arrow indicator if this component has multiple options
+                    if matches!(component, CommandComponent::Value(_))
+                        && app
+                            .history_options
+                            .get(&i)
+                            .map(|opts| opts.len() > 1)
+                            .unwrap_or(false)
+                    {
+                        spans.push(Span::styled(
+                            "▼",
+                            Style::default().add_modifier(Modifier::DIM),
+                        ));
+                        cursor_offset += text_len + 1;
+                    } else {
+                        cursor_offset += text_len;
+                    }
+
                     spans.push(Span::raw(" "));
-                    cursor_offset += text_len + 1;
+                    cursor_offset += 1;
                 }
             }
 
