@@ -190,22 +190,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     let text_len = text.len() as u16;
                     spans.push(Span::styled(text, style));
 
-                    // Add arrow indicator if this component has multiple options
-                    if matches!(component, CommandComponent::Value(_))
-                        && app
-                            .history_options
-                            .get(&i)
-                            .map(|opts| opts.len() > 1)
-                            .unwrap_or(false)
-                    {
-                        spans.push(Span::styled(
-                            "▼",
-                            Style::default().add_modifier(Modifier::DIM),
-                        ));
-                        cursor_offset += text_len + 1;
-                    } else {
-                        cursor_offset += text_len;
-                    }
+                    cursor_offset += text_len;
 
                     spans.push(Span::raw(" "));
                     cursor_offset += 1;
