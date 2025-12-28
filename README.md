@@ -1,42 +1,64 @@
 # te (手)
 
-> Your helping hand for command-line interfaces
+> Your helping hand for editing terminal commands
 
-`te` (Japanese: 手, "hand") is an interactive TUI wrapper that makes editing complex CLI commands easier by providing a form-based interface for modifying command arguments.
+`te` (Japanese: 手, "hand") is an interactive TUI tool that makes editing commands much easier by separating navigation and editing into two distinct modes. Perfect for tweaking long commands from your shell history or current command line.
 
 ## The Problem
 
-Long command-line commands are hard to edit and reuse:
+Editing long commands in the terminal buffer is frustrating:
 
 ```bash
-# Want to change just one parameter in this long command?
+# You have this command in your terminal (maybe from history)
 kubectl get pods -l app=asset -o custom-columns='POD:.metadata.name,RS:.metadata.ownerReferences[0].name' -w
 
-# Have to manually edit the entire command string
-# Easy to make mistakes with quotes, commas, etc.
+# Want to change "asset" to "frontend"?
+# - Arrow key through the entire line character by character
+# - Easy to accidentally delete quotes, commas, or other syntax
+# - Hard to see where you are in a long command
 ```
 
 ## The Solution
 
-Simply prefix your existing command with `te`:
+`te` gives you a **two-mode interface** inspired by vim:
+
+- **Navigation Mode**: Jump between command components with arrow keys
+- **Edit Mode**: Focus on editing a single component without accidentally breaking the rest
+
+Simply prefix your command with `te`:
 
 ```bash
 te kubectl get pods -l app=asset -o custom-columns='POD:.metadata.name,RS:.metadata.ownerReferences[0].name' -w
 ```
 
 `te` will:
-- 📋 Parse your existing command and extract all arguments and their values
-- ✨ Present an interactive TUI form for editing values
-- 💾 Display the modified command (without executing it)
-- ⚡ Let you copy and run the command when ready
+- 🧩 Parse your command into logical components (base, flags, values)
+- 🎯 Let you **navigate between components** with arrow keys (Navigation Mode)
+- 📚 Let you **cycle through historical values** you've used before
+- ✏️ Let you **edit individual components** safely (Edit Mode)
+- 👁️ Show a real-time preview as you make changes
+- ⚡ Output the final command when ready
 
 ## Features
 
-### 🎨 Interactive TUI
-Beautiful terminal interface built with [ratatui](https://github.com/ratatui-org/ratatui) that shows:
-- All command arguments with their current values
-- Editable form fields for each argument
-- Real-time command preview as you edit
+### 🎯 Two-Mode Interface
+Clear separation between navigation and editing, inspired by modal editors:
+- **Navigation Mode**: Use arrow keys to jump between command components instantly
+- **Edit Mode**: Edit a single component in isolation without breaking the rest
+- Visual distinction shows which mode you're in
+
+### 🧩 Component-Based Parsing
+Breaks commands into logical pieces:
+- Base commands and subcommands
+- Flags (`--flag` or `-f`)
+- Values associated with flags
+- Each component is independently editable
+
+### 📚 History-Aware
+Learns from your shell history to supercharge your workflow:
+- Automatically retrieves previous values you've used with each flag
+- Cycle through historical values with `←/→` keys in Navigation Mode
+- Enabled with simple shell integration - see installation below
 
 ### 🔧 Universal Wrapper
 Works with any CLI command. `te` simply parses your command string - no special support needed from the tool.
@@ -50,18 +72,19 @@ Works with any CLI command. `te` simply parses your command string - no special 
 ## Installation
 
 ```bash
-# With cargo
-cargo install te-cli
-
-# From source
+# From source (recommended for now)
 git clone https://github.com/yusukeshib/te
 cd te
+cargo install --path .
+
+# Or build and use directly
 cargo build --release
+# Binary will be at ./target/release/te
 ```
 
-### Shell Integration (Recommended)
+### Shell Integration (Strongly Recommended)
 
-For the best experience, enable shell integration to execute commands directly and access additional features like keybindings.
+Enable shell integration to unlock `te`'s full power, including history-aware value suggestions and direct command execution.
 
 **Zsh** (`~/.zshrc`):
 ```zsh
@@ -79,10 +102,9 @@ te init fish | source
 ```
 
 With shell integration you get:
-- ✅ `te-run` function - Wraps te to execute commands and add them to history
-- ✅ **Zsh only**: Press `Ctrl+T` to invoke te on your current command line
-- ✅ Commands are executed immediately after confirmation
-- ✅ Commands appear in your shell history
+- ✅ **History-based value suggestions** - Cycle through previous values you've used with each flag
+- ✅ **`te-run` function** - Execute commands directly and add them to history
+- ✅ **Zsh only**: `Ctrl+T` keybinding to invoke te on your current command line
 
 **Usage with shell integration:**
 ```bash
@@ -109,33 +131,43 @@ te docker run -d -p 8080:80 --name myapp -e ENV=prod nginx
 # Edit an ffmpeg command
 te ffmpeg -i input.mp4 -c:v libx264 -crf 23 output.mp4
 
-# Even works with commands from history
-te $(history | grep kubectl | tail -1 | cut -d' ' -f4-)
+# Edit the last command from history
+te !!
 ```
 
 ### In the TUI
 
-- `↑/↓`: Navigate between arguments
-- `Enter`: Edit the selected argument's value
-- `Esc`: Cancel editing / Exit
-- `Ctrl+X`: Confirm and display the final command
+**Navigation Mode** (default):
+- `↑/↓` or `j/k`: Jump between command components
+- `←/→` or `h/l`: Cycle through historical values for the selected component
+- `Enter`: Switch to Edit Mode for the selected component
+- `Ctrl+X`: Confirm and output the final command
+- `Esc`: Exit te
+
+**Edit Mode** (when editing a component):
+- Type to edit the component value
+- `Ctrl+X`: Save changes and return to Navigation Mode
+- `Esc`: Cancel changes and return to Navigation Mode
 
 ## How It Works
 
-1. **Parse Command**: `te` parses your command line to extract the base command, subcommands, and all arguments with their values
-2. **Present TUI**: Shows an interactive inline form with current values pre-filled
-3. **Edit**: You modify the values you want to change
-4. **Output**: Prints the final command to stdout
-5. **Execute** (with shell integration): The shell wrapper adds it to history and executes it
+1. **Parse**: `te` breaks your command into components (base command, flags, values)
+2. **Navigate**: Use `↑/↓` to jump between components instantly
+3. **Edit**: Press `Enter` to edit a component, or `←/→` to cycle through historical values
+4. **Confirm**: Press `Ctrl+X` to output the final command
+5. **Execute**: With shell integration, the command runs automatically and is added to history
 
 ## Comparison
 
-| Tool | Scope | Features |
-|------|-------|----------|
-| AWS CLI `--cli-auto-prompt` | AWS only | Interactive prompts, resource suggestions |
-| `kube-prompt` | kubectl only | Auto-complete |
-| `trogon` | Python Click/Typer apps | Auto-generated TUI |
-| **`te`** | **Any CLI tool** | **Interactive TUI + History + Presets** |
+`te` takes a unique approach to command editing:
+
+| Tool | Scope | Key Feature |
+|------|-------|-------------|
+| Terminal default | Any | Character-by-character editing |
+| AWS CLI `--cli-auto-prompt` | AWS only | Interactive prompts with AWS-specific knowledge |
+| `kube-prompt` | kubectl only | REPL with kubectl auto-completion |
+| `trogon` | Click/Typer apps | Auto-generated forms from Python code |
+| **`te`** | **Any CLI tool** | **Modal editing: Navigate by component, not by character** |
 
 ## Why "te" (手)?
 
@@ -143,23 +175,6 @@ In Japanese, 手 (te) means "hand" - representing:
 - 🤝 A helping hand for complex commands
 - ✋ Easy to type (just 2 characters)
 - 🎌 Honoring the Unix philosophy with a Japanese touch
-
-## Roadmap
-
-### Current Phase (v0.1)
-- [ ] Basic TUI interface
-- [ ] Parse existing command arguments and values
-- [ ] Pre-fill form with existing values
-- [ ] Display-only mode (no execution)
-
-### Future Features
-
-- [ ] **Per-command configuration**
-  - Custom labels and descriptions for specific arguments
-  - Custom input types (dropdown, checkbox, file picker)
-  - Validation rules for argument values
-  - Example values
-  - Provider argument options from a specified command in the config.toml
 
 ## Contributing
 
