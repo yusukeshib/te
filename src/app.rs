@@ -20,6 +20,16 @@ pub struct App {
     pub cursor_y: u16,
 }
 
+fn quote_if_needed(s: &str) -> String {
+    if s.contains(' ') {
+        // Escape existing double quotes
+        let escaped = s.replace('"', "\\\"");
+        format!("\"{}\"", escaped)
+    } else {
+        s.to_string()
+    }
+}
+
 impl App {
     pub fn new(
         components: Vec<CommandComponent>,
@@ -79,9 +89,9 @@ impl App {
 
         for component in components.iter() {
             match component {
-                CommandComponent::Base(s) => parts.push(s.clone()),
-                CommandComponent::Flag(s) => parts.push(s.clone()),
-                CommandComponent::Value(s) => parts.push(s.clone()),
+                CommandComponent::Base(s) => parts.push(quote_if_needed(s)),
+                CommandComponent::Flag(s) => parts.push(quote_if_needed(s)),
+                CommandComponent::Value(s) => parts.push(quote_if_needed(s)),
                 CommandComponent::LineBreak => {} // Skip line breaks in preview
             }
         }
@@ -109,7 +119,7 @@ impl App {
                     {
                         result.push(' ');
                     }
-                    result.push_str(s);
+                    result.push_str(&quote_if_needed(s));
                 }
                 CommandComponent::LineBreak => {
                     result.push_str(" \\\n");
