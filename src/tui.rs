@@ -223,6 +223,8 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char(c) => {
                         if c == 'x' && key.modifiers.contains(event::KeyModifiers::CONTROL) {
                             return Ok(true);
+                        } else if c == 'c' && key.modifiers.contains(event::KeyModifiers::CONTROL) {
+                            return Ok(false);
                         } else {
                             app.current_input.push(c)
                         }
@@ -238,6 +240,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Up => app.previous_option(),
                     KeyCode::Down => app.next_option(),
                     KeyCode::Enter => app.handle_enter(),
+                    KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        return Ok(false);
+                    }
                     KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(true);
                     }
