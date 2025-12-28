@@ -53,20 +53,32 @@ impl App {
         let mut history_options = HashMap::new();
         let mut current_option_index = HashMap::new();
 
-        // Look for Flag followed by Value to build history
+        // Look for Flag followed by Value to build history (skip LineBreaks)
         for idx in 0..components.len() {
             if let CommandComponent::Value(current) = &components[idx] {
-                // Check if previous component is a Flag
-                if idx > 0 {
-                    if let CommandComponent::Flag(flag) = &components[idx - 1] {
-                        if let Some(values) = history.get(flag) {
-                            if !values.is_empty() {
-                                history_options.insert(idx, values.clone());
-                                let option_idx =
-                                    values.iter().position(|v| v == current).unwrap_or(0);
-                                current_option_index.insert(idx, option_idx);
+                // Find previous non-LineBreak component
+                let mut prev_idx = idx;
+                while prev_idx > 0 {
+                    prev_idx -= 1;
+                    match &components[prev_idx] {
+                        CommandComponent::LineBreak => continue,
+                        CommandComponent::Flag(flag) => {
+                            if let Some(values) = history.get(flag) {
+                                let mut options = values.clone();
+                                // Ensure current value is in the options list
+                                if !options.contains(current) {
+                                    options.push(current.clone());
+                                }
+                                if !options.is_empty() {
+                                    let option_idx =
+                                        options.iter().position(|v| v == current).unwrap_or(0);
+                                    history_options.insert(idx, options);
+                                    current_option_index.insert(idx, option_idx);
+                                }
                             }
+                            break;
                         }
+                        _ => break,
                     }
                 }
             }

@@ -144,17 +144,26 @@ pub fn load_history_for_command(base_command: &[String]) -> Result<HashMap<Strin
         }
 
         if let Ok(components) = parse_command(command) {
-            // Track Flag followed by Value
+            // Track Flag followed by Value (possibly with LineBreak in between)
             let mut i = 0;
             while i < components.len() {
                 if let CommandComponent::Flag(flag) = &components[i] {
-                    // Check if next component is a Value
-                    if i + 1 < components.len() {
-                        if let CommandComponent::Value(value) = &components[i + 1] {
-                            values
-                                .entry(flag.clone())
-                                .or_insert_with(HashSet::new)
-                                .insert(value.clone());
+                    // Find next non-LineBreak component
+                    let mut j = i + 1;
+                    while j < components.len() {
+                        match &components[j] {
+                            CommandComponent::LineBreak => {
+                                j += 1;
+                                continue;
+                            }
+                            CommandComponent::Value(value) => {
+                                values
+                                    .entry(flag.clone())
+                                    .or_insert_with(HashSet::new)
+                                    .insert(value.clone());
+                                break;
+                            }
+                            _ => break,
                         }
                     }
                 }
