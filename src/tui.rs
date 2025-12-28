@@ -99,18 +99,18 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
         },
     )?;
 
-    // Start TUI from the next line (cursor_y + 1) to keep current line intact
-    let mut app = App::new(components, history, cursor_y + 1);
+    // Start TUI from the current line
+    let mut app = App::new(components, history, cursor_y);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
 
-    // Clear the TUI content from the next line down, keeping the current line intact
+    // Clear the TUI content from the current line down
     let backend = terminal.backend_mut();
     execute!(
         backend,
         DisableMouseCapture,
-        cursor::MoveTo(0, cursor_y + 1),
+        cursor::MoveTo(0, cursor_y),
         Clear(ClearType::FromCursorDown),
         cursor::MoveTo(cursor_x, cursor_y)
     )?;
