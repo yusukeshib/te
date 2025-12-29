@@ -1,16 +1,38 @@
-use anyhow::Result;
-use clap::Parser;
 use std::io::{self, IsTerminal, Read};
 
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+
 mod app;
-mod cli;
 mod command_parser;
 mod history;
 mod shell;
 mod tui;
 
-use cli::{Cli, Command};
 use tui::run_tui;
+
+#[derive(Parser)]
+#[command(name = "te")]
+#[command(about = "Your helping hand for command-line interfaces", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
+    #[arg(allow_hyphen_values = true)]
+    pub wrapped_command: Vec<String>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Initialize shell integration
+    Init {
+        /// Shell to generate integration for (zsh, bash, fish)
+        shell: String,
+        /// Optional key binding for zsh (default: ^T)
+        #[arg(short, long)]
+        bindkey: Option<String>,
+    },
+}
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
