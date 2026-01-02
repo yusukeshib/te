@@ -15,7 +15,10 @@ use ratatui::{
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 
-use crate::{app::App, command::Command};
+use crate::{
+    app::App,
+    command::{Command, Comp},
+};
 
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
 fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
@@ -147,7 +150,7 @@ fn run_app<B: ratatui::backend::Backend>(
 
             for (i, component) in app.components.iter().enumerate() {
                 // Skip line breaks in rendering
-                if matches!(component, CommandComponent::LineBreak) {
+                if matches!(component, Comp::LineBreak) {
                     continue;
                 }
 
@@ -156,10 +159,10 @@ fn run_app<B: ratatui::backend::Backend>(
                     quote_if_needed(&app.current_input)
                 } else {
                     match component {
-                        CommandComponent::Base(s) => quote_if_needed(s),
-                        CommandComponent::Flag(s) => quote_if_needed(s),
-                        CommandComponent::Value(s) => quote_if_needed(s),
-                        CommandComponent::LineBreak => unreachable!(), // Already skipped above
+                        Comp::Base(s) => quote_if_needed(s),
+                        Comp::Flag(s) => quote_if_needed(s),
+                        Comp::Value(s) => quote_if_needed(s),
+                        Comp::LineBreak => unreachable!(), // Already skipped above
                     }
                 };
 

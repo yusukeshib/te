@@ -15,7 +15,6 @@ pub enum Comp {
     Base(String),
     Flag(String),
     Value(String),
-    LineBreak,
 }
 
 pub struct Command {
@@ -43,17 +42,15 @@ impl Into<String> for Command {
         let mut result = String::new();
 
         for (idx, component) in self.components.iter().enumerate() {
-            match component {
-                Comp::Base(s) | Comp::Flag(s) | Comp::Value(s) => {
-                    if idx > 0 && !matches!(self.components.get(idx - 1), Some(Comp::LineBreak)) {
-                        result.push(' ');
-                    }
-                    result.push_str(&quote_if_needed(s));
-                }
-                Comp::LineBreak => {
-                    result.push_str(" \\\n");
-                }
+            if idx > 0 {
+                result.push(' ');
             }
+            let s = match component {
+                Comp::Base(s) => s,
+                Comp::Flag(s) => s,
+                Comp::Value(s) => s,
+            };
+            result.push_str(&quote_if_needed(s));
         }
         result
     }
@@ -71,10 +68,6 @@ impl TryFrom<&str> for Command {
             // Parse this line segment
             let trimmed = line.trim();
             if trimmed.is_empty() {
-                // Empty line, but we still want to preserve the line break
-                if line_idx < lines.len() - 1 {
-                    components.push(Comp::LineBreak);
-                }
                 continue;
             }
 
@@ -82,9 +75,6 @@ impl TryFrom<&str> for Command {
                 .ok_or_else(|| anyhow::anyhow!("Failed to parse command string"))?;
 
             if tokens.is_empty() {
-                if line_idx < lines.len() - 1 {
-                    components.push(Comp::LineBreak);
-                }
                 continue;
             }
 
@@ -132,11 +122,6 @@ impl TryFrom<&str> for Command {
                     components.push(Comp::Value(token.clone()));
                     i += 1;
                 }
-            }
-
-            // Add line break after this segment (except for the last line)
-            if line_idx < lines.len() - 1 {
-                components.push(Comp::LineBreak);
             }
         }
 
@@ -216,20 +201,18 @@ mod tests {
         assert_eq!(*cmd.component_at(2), Comp::Base("pam".to_string()));
         assert_eq!(*cmd.component_at(3), Comp::Base("grants".to_string()));
         assert_eq!(*cmd.component_at(4), Comp::Base("create".to_string()));
-        assert_eq!(*cmd.component_at(5), Comp::LineBreak);
         assert_eq!(
-            *cmd.component_at(6),
+            *cmd.component_at(5),
             Comp::Flag("--entitlement".to_string())
         );
         assert_eq!(
-            *cmd.component_at(7),
+            *cmd.component_at(6),
             Comp::Value("secret-manager-admin".to_string())
         );
-        assert_eq!(*cmd.component_at(8), Comp::LineBreak);
         assert_eq!(
-            *cmd.component_at(9),
+            *cmd.component_at(7),
             Comp::Flag("--requested-duration".to_string())
         );
-        assert_eq!(*cmd.component_at(10), Comp::Value("28800s".to_string()));
+        assert_eq!(*cmd.component_at(8), Comp::Value("28800s".to_string()));
     }
 }
