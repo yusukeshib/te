@@ -15,8 +15,7 @@ use ratatui::{
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 
-use crate::app::{App, CommandComponent, quote_if_needed};
-use crate::command_parser::parse_command;
+use crate::{app::App, command::Command};
 
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
 fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
@@ -59,20 +58,13 @@ fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
     Ok((0, 0))
 }
 
-pub fn run_tui(command_str: String) -> Result<Option<String>> {
-    let components = parse_command(&command_str)?;
+pub fn run_tui(command_str: &str) -> Result<Option<String>> {
+    let cmd: Command = command_str.try_into()?;
 
     // Extract base_command for history loading
-    let base_command: Vec<String> = components
-        .iter()
-        .filter_map(|c| match c {
-            CommandComponent::Base(s) => Some(s.clone()),
-            _ => None,
-        })
-        .collect();
-
+    let base_command = cmd.base_command();
     // Load history
-    let history = match crate::history::load_history_for_command(&base_command) {
+    let history = match crate::history::load_history_for_command(base_command) {
         Ok(h) => h,
         Err(_) => HashMap::new(),
     };
@@ -100,7 +92,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     )?;
 
     // Start TUI from the current line
-    let mut app = App::new(components, history, cursor_y);
+    let mut app = App::new(cmd, history, cursor_y);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -119,7 +111,7 @@ pub fn run_tui(command_str: String) -> Result<Option<String>> {
     match result {
         Ok(should_execute) => {
             if should_execute {
-                Ok(Some(app.build_final_command()))
+                Ok(Some(app.cmd.into()))
             } else {
                 Ok(None)
             }
@@ -235,11 +227,11 @@ fn run_app<B: ratatui::backend::Backend>(
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
-                    KeyCode::Right => app.next(),
-                    KeyCode::Left => app.previous(),
-                    KeyCode::Up => app.previous_option(),
-                    KeyCode::Down => app.next_option(),
-                    KeyCode::Enter => app.handle_enter(),
+                    KeyCode::Right => app.select_next_component(),
+                    KeyCode::Left => app.select_previous_component(),
+                    KeyCode::Up => app.select_previous_option(),
+                    KeyCode::Down => app.select_next_option(),
+                    KeyCode::Enter => app.start_input(),
                     KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(false);
                     }

@@ -114,7 +114,7 @@ fn matches_base_command(command: &str, base_command: &[String]) -> bool {
 }
 
 // Main function: Load history and return value candidates for each flag
-pub fn load_history_for_command(base_command: &[String]) -> Result<HashMap<String, Vec<String>>> {
+pub fn load_history_for_command(base_command: &str) -> Result<HashMap<String, Vec<String>>> {
     let shell = detect_shell();
 
     let history_file = match get_history_file(&shell) {

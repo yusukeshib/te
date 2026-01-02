@@ -1,18 +1,10 @@
+use crate::command::{Command, Comp};
 use ratatui::widgets::ListState;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CommandComponent {
-    Base(String),
-    Flag(String),
-    Value(String),
-    LineBreak,
-}
-
 pub struct App {
-    pub components: Vec<CommandComponent>,
+    pub cmd: Command,
     pub list_state: ListState,
-    pub preview_command: String,
     pub input_mode: bool,
     pub current_input: String,
     pub history_options: HashMap<usize, Vec<String>>,
@@ -20,34 +12,18 @@ pub struct App {
     pub cursor_y: u16,
 }
 
-pub fn quote_if_needed(s: &str) -> String {
-    if s.contains(' ') {
-        // Escape existing double quotes
-        let escaped = s.replace('"', "\\\"");
-        format!("\"{}\"", escaped)
-    } else {
-        s.to_string()
-    }
-}
-
 impl App {
-    pub fn new(
-        components: Vec<CommandComponent>,
-        history: HashMap<String, Vec<String>>,
-        cursor_y: u16,
-    ) -> Self {
+    pub fn new(cmd: Command, history: HashMap<String, Vec<String>>, cursor_y: u16) -> Self {
         let mut list_state = ListState::default();
         if !components.is_empty() {
             // Select first non-LineBreak component
             let first_selectable = components
                 .iter()
-                .position(|c| !matches!(c, CommandComponent::LineBreak));
+                .position(|c| !matches!(c, Comp::LineBreak));
             if let Some(idx) = first_selectable {
                 list_state.select(Some(idx));
             }
         }
-
-        let preview_command = Self::build_preview(&components);
 
         // Build mapping of history options for Value components
         let mut history_options = HashMap::new();
@@ -55,14 +31,14 @@ impl App {
 
         // Look for Flag followed by Value to build history (skip LineBreaks)
         for idx in 0..components.len() {
-            if let CommandComponent::Value(current) = &components[idx] {
+            if let Comp::Value(current) = &components[idx] {
                 // Find previous non-LineBreak component
                 let mut prev_idx = idx;
                 while prev_idx > 0 {
                     prev_idx -= 1;
                     match &components[prev_idx] {
-                        CommandComponent::LineBreak => continue,
-                        CommandComponent::Flag(flag) => {
+                        Comp::LineBreak => continue,
+                        Comp::Flag(flag) => {
                             if let Some(values) = history.get(flag) {
                                 let mut options = values.clone();
                                 // Ensure current value is in the options list
@@ -85,9 +61,8 @@ impl App {
         }
 
         Self {
-            components,
+            cmd,
             list_state,
-            preview_command,
             input_mode: false,
             current_input: String::new(),
             history_options,
@@ -96,53 +71,7 @@ impl App {
         }
     }
 
-    fn build_preview(components: &[CommandComponent]) -> String {
-        let mut parts = Vec::new();
-
-        for component in components.iter() {
-            match component {
-                CommandComponent::Base(s) => parts.push(quote_if_needed(s)),
-                CommandComponent::Flag(s) => parts.push(quote_if_needed(s)),
-                CommandComponent::Value(s) => parts.push(quote_if_needed(s)),
-                CommandComponent::LineBreak => {} // Skip line breaks in preview
-            }
-        }
-
-        parts.join(" ")
-    }
-
-    pub fn update_preview(&mut self) {
-        self.preview_command = Self::build_preview(&self.components);
-    }
-
-    pub fn build_final_command(&self) -> String {
-        let mut result = String::new();
-
-        for (idx, component) in self.components.iter().enumerate() {
-            match component {
-                CommandComponent::Base(s)
-                | CommandComponent::Flag(s)
-                | CommandComponent::Value(s) => {
-                    if idx > 0
-                        && !matches!(
-                            self.components.get(idx - 1),
-                            Some(CommandComponent::LineBreak)
-                        )
-                    {
-                        result.push(' ');
-                    }
-                    result.push_str(&quote_if_needed(s));
-                }
-                CommandComponent::LineBreak => {
-                    result.push_str(" \\\n");
-                }
-            }
-        }
-
-        result
-    }
-
-    pub fn next(&mut self) {
+    pub fn select_next_component(&mut self) {
         if self.components.is_empty() {
             return;
         }
@@ -163,14 +92,14 @@ impl App {
                 // Wrapped around to start, no selectable components
                 return;
             }
-            if !matches!(self.components[i], CommandComponent::LineBreak) {
+            if !matches!(self.components[i], Comp::LineBreak) {
                 self.list_state.select(Some(i));
                 return;
             }
         }
     }
 
-    pub fn previous(&mut self) {
+    pub fn select_previous_component(&mut self) {
         if self.components.is_empty() {
             return;
         }
@@ -191,7 +120,7 @@ impl App {
                 // Wrapped around to start, no selectable components
                 return;
             }
-            if !matches!(self.components[i], CommandComponent::LineBreak) {
+            if !matches!(self.components[i], Comp::LineBreak) {
                 self.list_state.select(Some(i));
                 return;
             }
@@ -201,19 +130,19 @@ impl App {
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
             match &self.components[selected] {
-                CommandComponent::Base(value) => {
+                Comp::Base(value) => {
                     self.input_mode = true;
                     self.current_input = value.clone();
                 }
-                CommandComponent::Flag(value) => {
+                Comp::Flag(value) => {
                     self.input_mode = true;
                     self.current_input = value.clone();
                 }
-                CommandComponent::Value(value) => {
+                Comp::Value(value) => {
                     self.input_mode = true;
                     self.current_input = value.clone();
                 }
-                CommandComponent::LineBreak => {
+                Comp::LineBreak => {
                     // LineBreak components should never be selected
                     unreachable!("LineBreak components should be skipped in navigation")
                 }
@@ -224,19 +153,19 @@ impl App {
     pub fn confirm_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
             match &self.components[selected] {
-                CommandComponent::Base(_) => {
-                    self.components[selected] = CommandComponent::Base(self.current_input.clone());
+                Comp::Base(_) => {
+                    self.components[selected] = Comp::Base(self.current_input.clone());
                     self.update_preview();
                 }
-                CommandComponent::Flag(_) => {
-                    self.components[selected] = CommandComponent::Flag(self.current_input.clone());
+                Comp::Flag(_) => {
+                    self.components[selected] = Comp::Flag(self.current_input.clone());
                     self.update_preview();
                 }
-                CommandComponent::Value(_) => {
-                    self.components[selected] = CommandComponent::Value(self.current_input.clone());
+                Comp::Value(_) => {
+                    self.components[selected] = Comp::Value(self.current_input.clone());
                     self.update_preview();
                 }
-                CommandComponent::LineBreak => {
+                Comp::LineBreak => {
                     // LineBreak components should never be selected
                     unreachable!("LineBreak components should be skipped in navigation")
                 }
@@ -251,13 +180,9 @@ impl App {
         self.current_input.clear();
     }
 
-    pub fn handle_enter(&mut self) {
-        self.start_input();
-    }
-
-    pub fn next_option(&mut self) {
+    pub fn select_next_option(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            if !matches!(self.components[selected], CommandComponent::Value(_)) {
+            if !matches!(self.components[selected], Comp::Value(_)) {
                 return;
             }
 
@@ -274,15 +199,15 @@ impl App {
                 let next_idx = (current_idx + 1) % options.len();
 
                 self.current_option_index.insert(selected, next_idx);
-                self.components[selected] = CommandComponent::Value(options[next_idx].clone());
+                self.components[selected] = Comp::Value(options[next_idx].clone());
                 self.update_preview();
             }
         }
     }
 
-    pub fn previous_option(&mut self) {
+    pub fn select_previous_option(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            if !matches!(self.components[selected], CommandComponent::Value(_)) {
+            if !matches!(self.components[selected], Comp::Value(_)) {
                 return;
             }
 
@@ -303,7 +228,7 @@ impl App {
                 };
 
                 self.current_option_index.insert(selected, prev_idx);
-                self.components[selected] = CommandComponent::Value(options[prev_idx].clone());
+                self.components[selected] = Comp::Value(options[prev_idx].clone());
                 self.update_preview();
             }
         }
