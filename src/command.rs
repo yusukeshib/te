@@ -1,20 +1,27 @@
 use anyhow::Result;
 
-fn quote_if_needed(s: &str) -> String {
-    if s.contains(' ') {
-        // Escape existing double quotes
-        let escaped = s.replace('"', "\\\"");
-        format!("\"{}\"", escaped)
-    } else {
-        s.to_string()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Comp {
     Base(String),
     Flag(String),
     Value(String),
+}
+
+impl Comp {
+    fn to_str(&self) -> String {
+        let s = match self {
+            Comp::Base(s) => s,
+            Comp::Flag(s) => s,
+            Comp::Value(s) => s,
+        };
+        if s.contains(' ') {
+            // Escape existing double quotes
+            let escaped = s.replace('"', "\\\"");
+            format!("\"{}\"", escaped)
+        } else {
+            s.to_string()
+        }
+    }
 }
 
 pub struct Command {
@@ -45,12 +52,7 @@ impl Into<String> for Command {
             if idx > 0 {
                 result.push(' ');
             }
-            let s = match component {
-                Comp::Base(s) => s,
-                Comp::Flag(s) => s,
-                Comp::Value(s) => s,
-            };
-            result.push_str(&quote_if_needed(s));
+            result.push_str(&component.to_str());
         }
         result
     }
@@ -64,7 +66,7 @@ impl TryFrom<&str> for Command {
 
         let mut components = Vec::new();
 
-        for (line_idx, line) in lines.iter().enumerate() {
+        for line in lines.iter() {
             // Parse this line segment
             let trimmed = line.trim();
             if trimmed.is_empty() {
