@@ -12,13 +12,9 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 
-use crate::{
-    app::App,
-    command::{Command, Comp},
-};
+use crate::{app::App, command::Command};
 
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
 fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
@@ -64,14 +60,6 @@ fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
 pub fn run_tui(command_str: &str) -> Result<Option<String>> {
     let cmd: Command = command_str.try_into()?;
 
-    // Extract base_command for history loading
-    let base_command = cmd.base_command();
-    // Load history
-    let history = match crate::history::load_history_for_command(base_command) {
-        Ok(h) => h,
-        Err(_) => HashMap::new(),
-    };
-
     // Enable raw mode first to prevent escape sequences from echoing
     enable_raw_mode()?;
 
@@ -95,7 +83,7 @@ pub fn run_tui(command_str: &str) -> Result<Option<String>> {
     )?;
 
     // Start TUI from the current line
-    let mut app = App::new(cmd, history, cursor_y);
+    let mut app = App::new(cmd, cursor_y);
     let result = run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -148,48 +136,36 @@ fn run_app<B: ratatui::backend::Backend>(
             let mut cursor_offset = 2u16; // Start after "> "
             let mut target_cursor_offset = None;
 
-            for (i, component) in app.components.iter().enumerate() {
-                // Skip line breaks in rendering
-                if matches!(component, Comp::LineBreak) {
-                    continue;
-                }
-
+            for (i, component) in app.cmd.iter_components().enumerate() {
                 let text = if app.input_mode && i == selected {
                     // Show current input for the selected component when in input mode
-                    quote_if_needed(&app.current_input)
+                    app.current_input.clone()
                 } else {
-                    match component {
-                        Comp::Base(s) => quote_if_needed(s),
-                        Comp::Flag(s) => quote_if_needed(s),
-                        Comp::Value(s) => quote_if_needed(s),
-                        Comp::LineBreak => unreachable!(), // Already skipped above
-                    }
+                    component.clone().into()
                 };
 
-                if !text.is_empty() {
-                    let style = if i == selected {
-                        if app.input_mode {
-                            Style::default().add_modifier(Modifier::BOLD)
-                        } else {
-                            Style::default().add_modifier(Modifier::REVERSED)
-                        }
+                let style = if i == selected {
+                    if app.input_mode {
+                        Style::default().add_modifier(Modifier::BOLD)
                     } else {
-                        Style::default()
-                    };
-
-                    // Calculate cursor position if this is the selected component in input mode
-                    if app.input_mode && i == selected {
-                        target_cursor_offset = Some(cursor_offset + app.current_input.len() as u16);
+                        Style::default().add_modifier(Modifier::REVERSED)
                     }
+                } else {
+                    Style::default()
+                };
 
-                    let text_len = text.len() as u16;
-                    spans.push(Span::styled(text, style));
-
-                    cursor_offset += text_len;
-
-                    spans.push(Span::raw(" "));
-                    cursor_offset += 1;
+                // Calculate cursor position if this is the selected component in input mode
+                if app.input_mode && i == selected {
+                    target_cursor_offset = Some(cursor_offset + app.current_input.len() as u16);
                 }
+
+                let text_len = text.len() as u16;
+                spans.push(Span::styled(text, style));
+
+                cursor_offset += text_len;
+
+                spans.push(Span::raw(" "));
+                cursor_offset += 1;
             }
 
             let preview = Paragraph::new(Line::from(spans));
@@ -232,8 +208,6 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Esc => return Ok(false),
                     KeyCode::Right => app.select_next_component(),
                     KeyCode::Left => app.select_previous_component(),
-                    KeyCode::Up => app.select_previous_option(),
-                    KeyCode::Down => app.select_next_option(),
                     KeyCode::Enter => app.start_input(),
                     KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(false);

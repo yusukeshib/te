@@ -7,8 +7,8 @@ pub enum Comp {
     Value(String),
 }
 
-impl Comp {
-    fn to_str(&self) -> String {
+impl Into<String> for Comp {
+    fn into(self) -> String {
         let s = match self {
             Comp::Base(s) => s,
             Comp::Flag(s) => s,
@@ -29,18 +29,21 @@ pub struct Command {
 }
 
 impl Command {
+    pub fn set_value_at(&mut self, index: usize, new_value: &str) {
+        match &mut self.components[index] {
+            Comp::Base(s) => *s = new_value.to_string(),
+            Comp::Flag(s) => *s = new_value.to_string(),
+            Comp::Value(s) => *s = new_value.to_string(),
+        }
+    }
     pub fn component_count(&self) -> usize {
         self.components.len()
     }
     pub fn component_at(&self, index: usize) -> &Comp {
         &self.components[index as usize]
     }
-    pub fn base_command(&self) -> &str {
-        let first_component = self.components.first().unwrap();
-        let Comp::Base(s) = first_component else {
-            panic!("First component is not a Base command");
-        };
-        s
+    pub fn iter_components(&self) -> impl Iterator<Item = &Comp> {
+        self.components.iter()
     }
 }
 
@@ -52,7 +55,8 @@ impl Into<String> for Command {
             if idx > 0 {
                 result.push(' ');
             }
-            result.push_str(&component.to_str());
+            let str: String = component.clone().into();
+            result.push_str(&str);
         }
         result
     }

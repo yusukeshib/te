@@ -5,7 +5,6 @@ use clap::{Parser, Subcommand};
 
 mod app;
 mod command;
-mod history;
 mod shell;
 mod tui;
 
