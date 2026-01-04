@@ -158,12 +158,17 @@ fn run_app<B: ratatui::backend::Backend>(
                 };
 
                 // Track cursor position for input mode
+                let num_width = component_count.to_string().len();
+                let prefix = format!(" {:>width$} ", i + 1, width = num_width);
                 if app.input_mode && i == selected {
                     cursor_row = i as u16;
-                    cursor_col = app.current_input.len() as u16;
+                    cursor_col = prefix.len() as u16 + app.current_input.len() as u16;
                 }
 
-                lines.push(Line::from(Span::styled(text, style)));
+                lines.push(Line::from(vec![
+                    Span::styled(prefix, Style::default().add_modifier(Modifier::DIM)),
+                    Span::styled(text, style),
+                ]));
             }
 
             let list = Paragraph::new(lines);
