@@ -122,23 +122,26 @@ fn run_app<B: ratatui::backend::Backend>(
             // Start from the cursor position
             let start_y = app.cursor_y;
 
-            // Render only the preview line as the main UI
-            let preview_area = ratatui::layout::Rect {
+            // Build vertical list of components
+            let selected = app.list_state.selected().unwrap_or(0);
+            let components: Vec<_> = app.cmd.iter_components().collect();
+            let component_count = components.len() as u16;
+
+            // Render area for the vertical list
+            let list_area = ratatui::layout::Rect {
                 x: area.x,
                 y: start_y,
                 width: area.width,
-                height: 1,
+                height: component_count.min(area.height.saturating_sub(start_y)),
             };
 
-            // Build styled preview with highlighted selected component
-            let selected = app.list_state.selected().unwrap_or(0);
-            let mut spans = vec![Span::raw("> ")];
-            let mut cursor_offset = 2u16; // Start after "> "
-            let mut target_cursor_offset = None;
+            // Build lines for each component
+            let mut lines = Vec::new();
+            let mut cursor_row = 0u16;
+            let mut cursor_col = 0u16;
 
-            for (i, component) in app.cmd.iter_components().enumerate() {
+            for (i, component) in components.iter().enumerate() {
                 let text = if app.input_mode && i == selected {
-                    // Show current input for the selected component when in input mode
                     app.current_input.clone()
                 } else {
                     component.to_string()
@@ -154,28 +157,21 @@ fn run_app<B: ratatui::backend::Backend>(
                     Style::default()
                 };
 
-                // Calculate cursor position if this is the selected component in input mode
+                // Track cursor position for input mode
                 if app.input_mode && i == selected {
-                    target_cursor_offset = Some(cursor_offset + app.current_input.len() as u16);
+                    cursor_row = i as u16;
+                    cursor_col = app.current_input.len() as u16;
                 }
 
-                let text_len = text.len() as u16;
-                spans.push(Span::styled(text, style));
-
-                cursor_offset += text_len;
-
-                spans.push(Span::raw(" "));
-                cursor_offset += 1;
+                lines.push(Line::from(Span::styled(text, style)));
             }
 
-            let preview = Paragraph::new(Line::from(spans));
-            f.render_widget(preview, preview_area);
+            let list = Paragraph::new(lines);
+            f.render_widget(list, list_area);
 
             // Set cursor position if in input mode
             if app.input_mode {
-                if let Some(offset) = target_cursor_offset {
-                    f.set_cursor_position((preview_area.x + offset, preview_area.y));
-                }
+                f.set_cursor_position((list_area.x + cursor_col, list_area.y + cursor_row));
             }
         })?;
 
@@ -206,8 +202,8 @@ fn run_app<B: ratatui::backend::Backend>(
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
-                    KeyCode::Right => app.select_next_component(),
-                    KeyCode::Left => app.select_previous_component(),
+                    KeyCode::Down => app.select_next_component(),
+                    KeyCode::Up => app.select_previous_component(),
                     KeyCode::Enter => app.start_input(),
                     KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(false);
