@@ -27,8 +27,20 @@ impl ComponentPart {
 impl fmt::Display for ComponentPart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = self.as_str();
-        if s.contains(' ') {
-            let escaped = s.replace('"', "\\\"");
+        // Quote and escape if the string contains whitespace or characters that need escaping
+        if s.chars().any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\' | '\n' | '\r' | '\t')) {
+            let mut escaped = String::with_capacity(s.len());
+            for ch in s.chars() {
+                match ch {
+                    '\\' => escaped.push_str("\\\\"),
+                    '"' => escaped.push_str("\\\""),
+                    '\'' => escaped.push_str("\\'"),
+                    '\n' => escaped.push_str("\\n"),
+                    '\r' => escaped.push_str("\\r"),
+                    '\t' => escaped.push_str("\\t"),
+                    _ => escaped.push(ch),
+                }
+            }
             write!(f, "\"{}\"", escaped)
         } else {
             write!(f, "{}", s)
