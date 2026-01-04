@@ -2,27 +2,29 @@ use anyhow::Result;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Comp {
+pub enum ComponentPart {
     Base(String),
     Flag(String),
     Value(String),
 }
 
-impl Comp {
+impl ComponentPart {
     pub fn as_str(&self) -> &str {
         match self {
-            Comp::Base(s) | Comp::Flag(s) | Comp::Value(s) => s,
+            ComponentPart::Base(s) | ComponentPart::Flag(s) | ComponentPart::Value(s) => s,
         }
     }
 
     pub fn set_value(&mut self, new_value: &str) {
         match self {
-            Comp::Base(s) | Comp::Flag(s) | Comp::Value(s) => *s = new_value.to_string(),
+            ComponentPart::Base(s) | ComponentPart::Flag(s) | ComponentPart::Value(s) => {
+                *s = new_value.to_string()
+            }
         }
     }
 }
 
-impl fmt::Display for Comp {
+impl fmt::Display for ComponentPart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let s = self.as_str();
         if s.contains(' ') {
@@ -35,7 +37,7 @@ impl fmt::Display for Comp {
 }
 
 pub struct Command {
-    components: Vec<Comp>,
+    components: Vec<ComponentPart>,
 }
 
 impl Command {
@@ -45,10 +47,10 @@ impl Command {
     pub fn component_count(&self) -> usize {
         self.components.len()
     }
-    pub fn component_at(&self, index: usize) -> &Comp {
+    pub fn component_at(&self, index: usize) -> &ComponentPart {
         &self.components[index]
     }
-    pub fn iter_components(&self) -> impl Iterator<Item = &Comp> {
+    pub fn iter_components(&self) -> impl Iterator<Item = &ComponentPart> {
         self.components.iter()
     }
 }
@@ -95,7 +97,7 @@ impl TryFrom<&str> for Command {
                 if token.starts_with('-') {
                     break;
                 }
-                components.push(Comp::Base(token.clone()));
+                components.push(ComponentPart::Base(token.clone()));
                 i += 1;
             }
 
@@ -108,27 +110,27 @@ impl TryFrom<&str> for Command {
                     if let Some(eq_pos) = token.find('=') {
                         let flag = token[..eq_pos].to_string();
                         let value = token[eq_pos + 1..].to_string();
-                        components.push(Comp::Flag(flag));
-                        components.push(Comp::Value(value));
+                        components.push(ComponentPart::Flag(flag));
+                        components.push(ComponentPart::Value(value));
                         i += 1;
                     } else {
                         // Check if next token is a value (doesn't start with -)
                         let flag = token.clone();
                         if i + 1 < tokens.len() && !tokens[i + 1].starts_with('-') {
                             let value = tokens[i + 1].clone();
-                            components.push(Comp::Flag(flag));
-                            components.push(Comp::Value(value));
+                            components.push(ComponentPart::Flag(flag));
+                            components.push(ComponentPart::Value(value));
                             i += 2;
                         } else {
                             // Boolean flag (no value)
-                            components.push(Comp::Flag(flag));
+                            components.push(ComponentPart::Flag(flag));
                             i += 1;
                         }
                     }
                 } else {
                     // Unexpected token (not starting with -)
                     // Treat it as a positional argument
-                    components.push(Comp::Value(token.clone()));
+                    components.push(ComponentPart::Value(token.clone()));
                     i += 1;
                 }
             }
