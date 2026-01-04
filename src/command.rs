@@ -61,6 +61,13 @@ impl Command {
     pub fn component_count(&self) -> usize {
         self.components.len()
     }
+    /// Returns a reference to the component at the given `index`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds (i.e., `index >= self.component_count()`).
+    /// Callers must ensure that `index` is a valid component index before calling
+    /// this method.
     pub fn component_at(&self, index: usize) -> &ComponentPart {
         &self.components[index]
     }
