@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_quotes() {
-        let cmd: Command = r#"kubectl get pods -o custom-columns='POD:.metadata.name,RS:.metadata.ownerReferences[0].name'"#.try_into().unwrap();
+        let cmd: Command = "kubectl get pods -o custom-columns='POD:.metadata.name,RS:.metadata.ownerReferences[0].name'".try_into().unwrap();
 
         assert_eq!(
             *cmd.component_at(0),
