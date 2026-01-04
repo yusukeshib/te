@@ -26,17 +26,12 @@ impl App {
             None => 0,
         };
 
-        // Find next non-LineBreak component
         let mut i = start;
         i = if i >= self.cmd.component_count() - 1 {
             0
         } else {
             i + 1
         };
-        if i == start {
-            // Wrapped around to start, no selectable components
-            return;
-        }
         self.list_state.select(Some(i));
     }
 
@@ -45,17 +40,12 @@ impl App {
             Some(i) => i,
             None => 0,
         };
-        // Find previous non-LineBreak component
         let mut i = start;
         i = if i == 0 {
             self.cmd.component_count() - 1
         } else {
             i - 1
         };
-        if i == start {
-            // Wrapped around to start, no selectable components
-            return;
-        }
         self.list_state.select(Some(i));
     }
 
