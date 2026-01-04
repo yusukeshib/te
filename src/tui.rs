@@ -139,6 +139,7 @@ fn run_app<B: ratatui::backend::Backend>(
             let mut lines = Vec::new();
             let mut cursor_row = 0u16;
             let mut cursor_col = 0u16;
+            let num_width = component_count.to_string().len();
 
             for (i, component) in components.iter().enumerate() {
                 let text = if app.input_mode && i == selected {
@@ -158,7 +159,6 @@ fn run_app<B: ratatui::backend::Backend>(
                 };
 
                 // Track cursor position for input mode
-                let num_width = component_count.to_string().len();
                 let prefix = format!(" {:>width$} ", i + 1, width = num_width);
                 if app.input_mode && i == selected {
                     cursor_row = i as u16;
