@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Comp {
@@ -15,19 +16,14 @@ impl Comp {
     }
 }
 
-impl Into<String> for Comp {
-    fn into(self) -> String {
-        let s = match self {
-            Comp::Base(s) => s,
-            Comp::Flag(s) => s,
-            Comp::Value(s) => s,
-        };
+impl fmt::Display for Comp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = self.as_str();
         if s.contains(' ') {
-            // Escape existing double quotes
             let escaped = s.replace('"', "\\\"");
-            format!("\"{}\"", escaped)
+            write!(f, "\"{}\"", escaped)
         } else {
-            s.to_string()
+            write!(f, "{}", s)
         }
     }
 }
@@ -55,18 +51,15 @@ impl Command {
     }
 }
 
-impl Into<String> for Command {
-    fn into(self) -> String {
-        let mut result = String::new();
-
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (idx, component) in self.components.iter().enumerate() {
             if idx > 0 {
-                result.push(' ');
+                write!(f, " ")?;
             }
-            let str: String = component.clone().into();
-            result.push_str(&str);
+            write!(f, "{}", component)?;
         }
-        result
+        Ok(())
     }
 }
 
@@ -231,41 +224,37 @@ mod tests {
     }
 
     #[test]
-    fn test_comp_into_string() {
+    fn test_comp_display() {
         // Simple strings without spaces
-        let s: String = Comp::Base("kubectl".to_string()).into();
-        assert_eq!(s, "kubectl");
-
-        let s: String = Comp::Flag("--name".to_string()).into();
-        assert_eq!(s, "--name");
-
-        let s: String = Comp::Value("myapp".to_string()).into();
-        assert_eq!(s, "myapp");
+        assert_eq!(Comp::Base("kubectl".to_string()).to_string(), "kubectl");
+        assert_eq!(Comp::Flag("--name".to_string()).to_string(), "--name");
+        assert_eq!(Comp::Value("myapp".to_string()).to_string(), "myapp");
 
         // String with spaces should be quoted
-        let s: String = Comp::Value("hello world".to_string()).into();
-        assert_eq!(s, "\"hello world\"");
+        assert_eq!(
+            Comp::Value("hello world".to_string()).to_string(),
+            "\"hello world\""
+        );
 
         // String with spaces and double quotes should escape quotes
-        let s: String = Comp::Value("say \"hello\"".to_string()).into();
-        assert_eq!(s, "\"say \\\"hello\\\"\"");
+        assert_eq!(
+            Comp::Value("say \"hello\"".to_string()).to_string(),
+            "\"say \\\"hello\\\"\""
+        );
     }
 
     #[test]
-    fn test_command_into_string() {
+    fn test_command_display() {
         // Simple command roundtrip
         let cmd: Command = "kubectl get pods -n default".try_into().unwrap();
-        let s: String = cmd.into();
-        assert_eq!(s, "kubectl get pods -n default");
+        assert_eq!(cmd.to_string(), "kubectl get pods -n default");
 
         // Command with quoted value containing spaces
         let cmd: Command = "echo \"hello world\"".try_into().unwrap();
-        let s: String = cmd.into();
-        assert_eq!(s, "echo \"hello world\"");
+        assert_eq!(cmd.to_string(), "echo \"hello world\"");
 
         // Command with --flag=value syntax
         let cmd: Command = "docker run --name=myapp image".try_into().unwrap();
-        let s: String = cmd.into();
-        assert_eq!(s, "docker run --name myapp image");
+        assert_eq!(cmd.to_string(), "docker run --name myapp image");
     }
 }

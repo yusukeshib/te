@@ -102,7 +102,7 @@ pub fn run_tui(command_str: &str) -> Result<Option<String>> {
     match result {
         Ok(should_execute) => {
             if should_execute {
-                Ok(Some(app.cmd.into()))
+                Ok(Some(app.cmd.to_string()))
             } else {
                 Ok(None)
             }
@@ -141,7 +141,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     // Show current input for the selected component when in input mode
                     app.current_input.clone()
                 } else {
-                    component.clone().into()
+                    component.to_string()
                 };
 
                 let style = if i == selected {
