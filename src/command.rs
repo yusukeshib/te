@@ -40,7 +40,7 @@ impl Command {
         self.components.len()
     }
     pub fn component_at(&self, index: usize) -> &Comp {
-        &self.components[index as usize]
+        &self.components[index]
     }
     pub fn iter_components(&self) -> impl Iterator<Item = &Comp> {
         self.components.iter()
@@ -220,5 +220,44 @@ mod tests {
             Comp::Flag("--requested-duration".to_string())
         );
         assert_eq!(*cmd.component_at(8), Comp::Value("28800s".to_string()));
+    }
+
+    #[test]
+    fn test_comp_into_string() {
+        // Simple strings without spaces
+        let s: String = Comp::Base("kubectl".to_string()).into();
+        assert_eq!(s, "kubectl");
+
+        let s: String = Comp::Flag("--name".to_string()).into();
+        assert_eq!(s, "--name");
+
+        let s: String = Comp::Value("myapp".to_string()).into();
+        assert_eq!(s, "myapp");
+
+        // String with spaces should be quoted
+        let s: String = Comp::Value("hello world".to_string()).into();
+        assert_eq!(s, "\"hello world\"");
+
+        // String with spaces and double quotes should escape quotes
+        let s: String = Comp::Value("say \"hello\"".to_string()).into();
+        assert_eq!(s, "\"say \\\"hello\\\"\"");
+    }
+
+    #[test]
+    fn test_command_into_string() {
+        // Simple command roundtrip
+        let cmd: Command = "kubectl get pods -n default".try_into().unwrap();
+        let s: String = cmd.into();
+        assert_eq!(s, "kubectl get pods -n default");
+
+        // Command with quoted value containing spaces
+        let cmd: Command = "echo \"hello world\"".try_into().unwrap();
+        let s: String = cmd.into();
+        assert_eq!(s, "echo \"hello world\"");
+
+        // Command with --flag=value syntax
+        let cmd: Command = "docker run --name=myapp image".try_into().unwrap();
+        let s: String = cmd.into();
+        assert_eq!(s, "docker run --name myapp image");
     }
 }

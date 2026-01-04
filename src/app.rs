@@ -13,7 +13,7 @@ impl App {
     pub fn new(cmd: Command, cursor_y: u16) -> Self {
         Self {
             cmd,
-            list_state: ListState::default(),
+            list_state: ListState::default().with_selected(Some(0)),
             input_mode: false,
             current_input: String::new(),
             cursor_y,
@@ -38,7 +38,6 @@ impl App {
             return;
         }
         self.list_state.select(Some(i));
-        return;
     }
 
     pub fn select_previous_component(&mut self) {
