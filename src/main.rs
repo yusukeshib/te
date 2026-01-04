@@ -4,8 +4,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod app;
-mod command_parser;
-mod history;
+mod command;
 mod shell;
 mod tui;
 
@@ -68,7 +67,7 @@ fn main() -> Result<()> {
         cli.wrapped_command.join(" ")
     };
 
-    let final_command = run_tui(command_str)?;
+    let final_command = run_tui(&command_str)?;
 
     if let Some(cmd) = final_command {
         println!("{}", cmd);
