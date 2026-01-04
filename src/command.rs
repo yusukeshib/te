@@ -14,6 +14,12 @@ impl Comp {
             Comp::Base(s) | Comp::Flag(s) | Comp::Value(s) => s,
         }
     }
+
+    pub fn set_value(&mut self, new_value: &str) {
+        match self {
+            Comp::Base(s) | Comp::Flag(s) | Comp::Value(s) => *s = new_value.to_string(),
+        }
+    }
 }
 
 impl fmt::Display for Comp {
@@ -34,11 +40,7 @@ pub struct Command {
 
 impl Command {
     pub fn set_value_at(&mut self, index: usize, new_value: &str) {
-        match &mut self.components[index] {
-            Comp::Base(s) => *s = new_value.to_string(),
-            Comp::Flag(s) => *s = new_value.to_string(),
-            Comp::Value(s) => *s = new_value.to_string(),
-        }
+        self.components[index].set_value(new_value);
     }
     pub fn component_count(&self) -> usize {
         self.components.len()
