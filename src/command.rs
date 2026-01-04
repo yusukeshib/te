@@ -7,6 +7,14 @@ pub enum Comp {
     Value(String),
 }
 
+impl Comp {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Comp::Base(s) | Comp::Flag(s) | Comp::Value(s) => s,
+        }
+    }
+}
+
 impl Into<String> for Comp {
     fn into(self) -> String {
         let s = match self {

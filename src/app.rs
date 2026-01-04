@@ -1,4 +1,4 @@
-use crate::command::{Command, Comp};
+use crate::command::Command;
 use ratatui::widgets::ListState;
 
 pub struct App {
@@ -61,20 +61,8 @@ impl App {
 
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            match self.cmd.component_at(selected) {
-                Comp::Base(value) => {
-                    self.input_mode = true;
-                    self.current_input = value.clone();
-                }
-                Comp::Flag(value) => {
-                    self.input_mode = true;
-                    self.current_input = value.clone();
-                }
-                Comp::Value(value) => {
-                    self.input_mode = true;
-                    self.current_input = value.clone();
-                }
-            }
+            self.input_mode = true;
+            self.current_input = self.cmd.component_at(selected).as_str().to_string();
         }
     }
 
