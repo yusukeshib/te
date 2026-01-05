@@ -20,6 +20,18 @@ impl App {
         }
     }
 
+    pub fn delete_selected_component(&mut self) {
+        if let Some(selected) = self.list_state.selected() {
+            self.cmd.remove_component_at(selected);
+            let count = self.cmd.component_count();
+            if count == 0 {
+                self.list_state.select(None);
+            } else if selected >= count {
+                self.list_state.select(Some(count - 1));
+            }
+        }
+    }
+
     pub fn select_next_component(&mut self) {
         let start = match self.list_state.selected() {
             Some(i) => i,

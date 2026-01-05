@@ -205,6 +205,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             } else {
                 match key.code {
+                    KeyCode::Delete => app.delete_selected_component(),
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
                     KeyCode::Down => app.select_next_component(),

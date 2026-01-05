@@ -55,6 +55,9 @@ pub struct Command {
 }
 
 impl Command {
+    pub fn remove_component_at(&mut self, index: usize) {
+        self.components.remove(index);
+    }
     pub fn set_value_at(&mut self, index: usize, new_value: &str) {
         self.components[index].set_value(new_value);
     }
