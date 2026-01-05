@@ -55,6 +55,13 @@ pub struct Command {
 }
 
 impl Command {
+    /// Removes the component at the given `index`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds (i.e., `index >= self.component_count()`).
+    /// Callers must ensure that `index` is a valid component index before calling
+    /// this method.
     pub fn remove_component_at(&mut self, index: usize) {
         self.components.remove(index);
     }
