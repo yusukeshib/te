@@ -55,6 +55,16 @@ pub struct Command {
 }
 
 impl Command {
+    /// Removes the component at the given `index`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds (i.e., `index >= self.component_count()`).
+    /// Callers must ensure that `index` is a valid component index before calling
+    /// this method.
+    pub fn remove_component_at(&mut self, index: usize) {
+        self.components.remove(index);
+    }
     pub fn set_value_at(&mut self, index: usize, new_value: &str) {
         self.components[index].set_value(new_value);
     }
@@ -323,5 +333,51 @@ mod tests {
         // Command with --flag=value syntax
         let cmd: Command = "docker run --name=myapp image".try_into().unwrap();
         assert_eq!(cmd.to_string(), "docker run --name myapp image");
+    }
+
+    #[test]
+    fn test_remove_component_at_middle() {
+        let mut cmd: Command = "kubectl get pods -n default".try_into().unwrap();
+        assert_eq!(cmd.component_count(), 5);
+
+        cmd.remove_component_at(2); // Remove "pods"
+
+        assert_eq!(cmd.component_count(), 4);
+        assert_eq!(cmd.component_at(0).as_str(), "kubectl");
+        assert_eq!(cmd.component_at(1).as_str(), "get");
+        assert_eq!(cmd.component_at(2).as_str(), "-n");
+        assert_eq!(cmd.component_at(3).as_str(), "default");
+    }
+
+    #[test]
+    fn test_remove_component_at_first() {
+        let mut cmd: Command = "kubectl get pods".try_into().unwrap();
+
+        cmd.remove_component_at(0);
+
+        assert_eq!(cmd.component_count(), 2);
+        assert_eq!(cmd.component_at(0).as_str(), "get");
+        assert_eq!(cmd.component_at(1).as_str(), "pods");
+    }
+
+    #[test]
+    fn test_remove_component_at_last() {
+        let mut cmd: Command = "kubectl get pods".try_into().unwrap();
+
+        cmd.remove_component_at(2);
+
+        assert_eq!(cmd.component_count(), 2);
+        assert_eq!(cmd.component_at(0).as_str(), "kubectl");
+        assert_eq!(cmd.component_at(1).as_str(), "get");
+    }
+
+    #[test]
+    fn test_remove_all_components() {
+        let mut cmd: Command = "kubectl".try_into().unwrap();
+        assert_eq!(cmd.component_count(), 1);
+
+        cmd.remove_component_at(0);
+
+        assert_eq!(cmd.component_count(), 0);
     }
 }
