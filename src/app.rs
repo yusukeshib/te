@@ -174,4 +174,95 @@ mod tests {
         assert_eq!(app.list_state.selected(), Some(0));
         assert_eq!(app.cmd.component_at(0).as_str(), "get");
     }
+
+    #[test]
+    fn test_insert_at_beginning() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(0));
+
+        app.insert_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(0));
+        assert_eq!(app.cmd.component_at(0).as_str(), "");
+        assert_eq!(app.cmd.component_at(1).as_str(), "kubectl");
+    }
+
+    #[test]
+    fn test_insert_at_middle() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(1));
+
+        app.insert_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(1));
+        assert_eq!(app.cmd.component_at(0).as_str(), "kubectl");
+        assert_eq!(app.cmd.component_at(1).as_str(), "");
+        assert_eq!(app.cmd.component_at(2).as_str(), "get");
+    }
+
+    #[test]
+    fn test_insert_with_no_selection() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(None);
+
+        app.insert_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(0));
+        assert_eq!(app.cmd.component_at(0).as_str(), "");
+    }
+
+    #[test]
+    fn test_append_at_beginning() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(0));
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(1));
+        assert_eq!(app.cmd.component_at(0).as_str(), "kubectl");
+        assert_eq!(app.cmd.component_at(1).as_str(), "");
+        assert_eq!(app.cmd.component_at(2).as_str(), "get");
+    }
+
+    #[test]
+    fn test_append_at_middle() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(1));
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(2));
+        assert_eq!(app.cmd.component_at(1).as_str(), "get");
+        assert_eq!(app.cmd.component_at(2).as_str(), "");
+        assert_eq!(app.cmd.component_at(3).as_str(), "pods");
+    }
+
+    #[test]
+    fn test_append_at_end() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(2));
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(3));
+        assert_eq!(app.cmd.component_at(3).as_str(), "");
+    }
+
+    #[test]
+    fn test_append_with_no_selection() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(None);
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(3));
+        assert_eq!(app.cmd.component_at(3).as_str(), "");
+    }
 }
