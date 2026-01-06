@@ -192,25 +192,33 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Backspace => {
                         app.current_input.pop();
                     }
-                    KeyCode::Char(c) => {
-                        if c == 'x' && key.modifiers.contains(event::KeyModifiers::CONTROL) {
-                            return Ok(true);
-                        } else if c == 'c' && key.modifiers.contains(event::KeyModifiers::CONTROL) {
-                            return Ok(false);
-                        } else {
-                            app.current_input.push(c)
-                        }
+                    KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        return Ok(true);
                     }
+                    KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        return Ok(false);
+                    }
+                    KeyCode::Char(c) => app.current_input.push(c),
                     _ => {}
                 }
             } else {
                 match key.code {
-                    KeyCode::Delete | KeyCode::Backspace => app.delete_selected_component(),
+                    KeyCode::Char('i') => {
+                        app.insert_new_component();
+                        app.start_input();
+                    }
+                    KeyCode::Char('a') => {
+                        app.append_new_component();
+                        app.start_input();
+                    }
+                    KeyCode::Char('d') | KeyCode::Delete | KeyCode::Backspace => {
+                        app.delete_selected_component()
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => app.select_next_component(),
+                    KeyCode::Up | KeyCode::Char('k') => app.select_previous_component(),
+                    KeyCode::Enter => app.start_input(),
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
-                    KeyCode::Down => app.select_next_component(),
-                    KeyCode::Up => app.select_previous_component(),
-                    KeyCode::Enter => app.start_input(),
                     KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(false);
                     }

@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::command::{Command, CommandPart};
 use ratatui::widgets::ListState;
 
 pub struct App {
@@ -18,6 +18,26 @@ impl App {
             current_input: String::new(),
             cursor_y,
         }
+    }
+
+    pub fn insert_new_component(&mut self) {
+        let insert_at = match self.list_state.selected() {
+            Some(i) => i,
+            None => 0,
+        };
+        self.cmd
+            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
+        self.list_state.select(Some(insert_at));
+    }
+
+    pub fn append_new_component(&mut self) {
+        let insert_at = match self.list_state.selected() {
+            Some(i) => i + 1,
+            None => self.cmd.component_count(),
+        };
+        self.cmd
+            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
+        self.list_state.select(Some(insert_at));
     }
 
     pub fn delete_selected_component(&mut self) {
@@ -153,5 +173,96 @@ mod tests {
         // Selection stays at 0
         assert_eq!(app.list_state.selected(), Some(0));
         assert_eq!(app.cmd.component_at(0).as_str(), "get");
+    }
+
+    #[test]
+    fn test_insert_at_beginning() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(0));
+
+        app.insert_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(0));
+        assert_eq!(app.cmd.component_at(0).as_str(), "");
+        assert_eq!(app.cmd.component_at(1).as_str(), "kubectl");
+    }
+
+    #[test]
+    fn test_insert_at_middle() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(1));
+
+        app.insert_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(1));
+        assert_eq!(app.cmd.component_at(0).as_str(), "kubectl");
+        assert_eq!(app.cmd.component_at(1).as_str(), "");
+        assert_eq!(app.cmd.component_at(2).as_str(), "get");
+    }
+
+    #[test]
+    fn test_insert_with_no_selection() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(None);
+
+        app.insert_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(0));
+        assert_eq!(app.cmd.component_at(0).as_str(), "");
+    }
+
+    #[test]
+    fn test_append_at_beginning() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(0));
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(1));
+        assert_eq!(app.cmd.component_at(0).as_str(), "kubectl");
+        assert_eq!(app.cmd.component_at(1).as_str(), "");
+        assert_eq!(app.cmd.component_at(2).as_str(), "get");
+    }
+
+    #[test]
+    fn test_append_at_middle() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(1));
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(2));
+        assert_eq!(app.cmd.component_at(1).as_str(), "get");
+        assert_eq!(app.cmd.component_at(2).as_str(), "");
+        assert_eq!(app.cmd.component_at(3).as_str(), "pods");
+    }
+
+    #[test]
+    fn test_append_at_end() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(Some(2));
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(3));
+        assert_eq!(app.cmd.component_at(3).as_str(), "");
+    }
+
+    #[test]
+    fn test_append_with_no_selection() {
+        let mut app = create_app("kubectl get pods");
+        app.list_state.select(None);
+
+        app.append_new_component();
+
+        assert_eq!(app.cmd.component_count(), 4);
+        assert_eq!(app.list_state.selected(), Some(3));
+        assert_eq!(app.cmd.component_at(3).as_str(), "");
     }
 }
