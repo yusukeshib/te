@@ -7,6 +7,7 @@ mod app;
 mod command;
 mod shell;
 mod tui;
+mod undo;
 
 use tui::run_tui;
 

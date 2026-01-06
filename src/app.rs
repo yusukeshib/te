@@ -1,4 +1,7 @@
-use crate::command::{Command, CommandPart};
+use crate::{
+    command::{Command, CommandPart},
+    undo::{Undo, UndoAction},
+};
 use ratatui::widgets::ListState;
 
 pub struct App {
@@ -6,6 +9,7 @@ pub struct App {
     pub list_state: ListState,
     pub input_mode: bool,
     pub current_input: String,
+    pub undo: Undo,
     pub cursor_y: u16,
 }
 
@@ -16,7 +20,110 @@ impl App {
             list_state: ListState::default().with_selected(Some(0)),
             input_mode: false,
             current_input: String::new(),
+            undo: Undo::new(),
             cursor_y,
+        }
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(last) = self.undo.pop() {
+            match last {
+                UndoAction::Insert {
+                    position,
+                    inserted_value,
+                } => {
+                    self.cmd.remove_component_at(position);
+                    let count = self.cmd.component_count();
+                    if count == 0 {
+                        self.list_state.select(None);
+                    } else if position >= count {
+                        self.list_state.select(Some(count - 1));
+                    } else {
+                        self.list_state.select(Some(position));
+                    }
+                    self.undo.push_redo(UndoAction::Insert {
+                        position,
+                        inserted_value,
+                    });
+                }
+                UndoAction::Edit {
+                    position,
+                    original_value,
+                    updated_value,
+                } => {
+                    self.cmd.set_value_at(position, &original_value);
+                    self.list_state.select(Some(position));
+                    self.undo.push_redo(UndoAction::Edit {
+                        position,
+                        original_value,
+                        updated_value,
+                    });
+                }
+                UndoAction::Delete {
+                    position,
+                    deleted_value,
+                } => {
+                    self.cmd
+                        .insert_component_at(position, deleted_value.clone());
+                    self.list_state.select(Some(position));
+                    self.undo.push_redo(UndoAction::Delete {
+                        position,
+                        deleted_value,
+                    });
+                }
+            }
+        }
+    }
+
+    pub fn redo(&mut self) {
+        if let Some(action) = self.undo.pop_redo() {
+            match action {
+                UndoAction::Insert {
+                    position,
+                    inserted_value,
+                } => {
+                    self.cmd.insert_component_at(
+                        position,
+                        crate::command::CommandPart::Value(inserted_value.clone()),
+                    );
+                    self.list_state.select(Some(position));
+                    self.undo.actions.push(UndoAction::Insert {
+                        position,
+                        inserted_value,
+                    });
+                }
+                UndoAction::Edit {
+                    position,
+                    original_value,
+                    updated_value,
+                } => {
+                    self.cmd.set_value_at(position, &updated_value);
+                    self.list_state.select(Some(position));
+                    self.undo.actions.push(UndoAction::Edit {
+                        position,
+                        original_value,
+                        updated_value,
+                    });
+                }
+                UndoAction::Delete {
+                    position,
+                    deleted_value,
+                } => {
+                    self.cmd.remove_component_at(position);
+                    let count = self.cmd.component_count();
+                    if count == 0 {
+                        self.list_state.select(None);
+                    } else if position >= count {
+                        self.list_state.select(Some(count - 1));
+                    } else {
+                        self.list_state.select(Some(position));
+                    }
+                    self.undo.actions.push(UndoAction::Delete {
+                        position,
+                        deleted_value,
+                    });
+                }
+            }
         }
     }
 
@@ -25,9 +132,7 @@ impl App {
             Some(i) => i,
             None => 0,
         };
-        self.cmd
-            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
-        self.list_state.select(Some(insert_at));
+        self.insert_new_component_at(insert_at);
     }
 
     pub fn append_new_component(&mut self) {
@@ -35,14 +140,30 @@ impl App {
             Some(i) => i + 1,
             None => self.cmd.component_count(),
         };
+        self.insert_new_component_at(insert_at);
+    }
+
+    fn insert_new_component_at(&mut self, insert_at: usize) {
+        let value = "".to_string();
         self.cmd
-            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
+            .insert_component_at(insert_at, CommandPart::Value(value.clone()));
         self.list_state.select(Some(insert_at));
+
+        self.undo.push(UndoAction::Insert {
+            position: insert_at,
+            inserted_value: value,
+        })
     }
 
     pub fn delete_selected_component(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            self.cmd.remove_component_at(selected);
+            let value = self.cmd.remove_component_at(selected);
+
+            self.undo.push(UndoAction::Delete {
+                position: selected,
+                deleted_value: value,
+            });
+
             let count = self.cmd.component_count();
             if count == 0 {
                 self.list_state.select(None);
@@ -90,7 +211,13 @@ impl App {
 
     pub fn confirm_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            self.cmd.set_value_at(selected, &self.current_input);
+            let old_value = self.cmd.set_value_at(selected, &self.current_input);
+
+            self.undo.push(UndoAction::Edit {
+                position: selected,
+                original_value: old_value,
+                updated_value: self.current_input.clone(),
+            })
         }
         self.input_mode = false;
         self.current_input.clear();
