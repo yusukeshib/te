@@ -84,6 +84,10 @@ impl Command {
     pub fn iter_components(&self) -> impl Iterator<Item = &CommandPart> {
         self.components.iter()
     }
+
+    pub fn insert_component_at(&mut self, index: usize, part: CommandPart) {
+        self.components.insert(index, part);
+    }
 }
 
 impl fmt::Display for Command {

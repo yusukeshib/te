@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::command::{Command, CommandPart};
 use ratatui::widgets::ListState;
 
 pub struct App {
@@ -18,6 +18,26 @@ impl App {
             current_input: String::new(),
             cursor_y,
         }
+    }
+
+    pub fn insert_new_component(&mut self) {
+        let insert_at = match self.list_state.selected() {
+            Some(i) => i,
+            None => 0,
+        };
+        self.cmd
+            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
+        self.list_state.select(Some(insert_at));
+    }
+
+    pub fn append_new_component(&mut self) {
+        let insert_at = match self.list_state.selected() {
+            Some(i) => i + 1,
+            None => self.cmd.component_count(),
+        };
+        self.cmd
+            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
+        self.list_state.select(Some(insert_at));
     }
 
     pub fn delete_selected_component(&mut self) {
