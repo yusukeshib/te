@@ -20,3 +20,4 @@ ratatui = "0.29"
 crossterm = { version = "0.28", features = ["use-dev-tty"] }
 anyhow = "1.0"
 shlex = "1.3"
+unicode-width = "0.2.0"

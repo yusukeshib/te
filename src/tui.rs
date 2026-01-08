@@ -8,10 +8,47 @@ use crossterm::{
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
     backend::CrosstermBackend,
+    layout::Constraint,
     style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::Paragraph,
+    text::Text,
+    widgets::{Cell, Row, Table},
 };
+
+/// Wrap text into lines that fit within the given width
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    if width == 0 {
+        return vec![text.to_string()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current_line = String::new();
+    let mut current_width = 0;
+
+    for ch in text.chars() {
+        // Handle existing line breaks
+        if ch == '\n' {
+            lines.push(current_line);
+            current_line = String::new();
+            current_width = 0;
+            continue;
+        }
+
+        let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+        if current_width + char_width > width && !current_line.is_empty() {
+            lines.push(current_line);
+            current_line = String::new();
+            current_width = 0;
+        }
+        current_line.push(ch);
+        current_width += char_width;
+    }
+
+    if !current_line.is_empty() || lines.is_empty() {
+        lines.push(current_line);
+    }
+
+    lines
+}
 use std::fs::OpenOptions;
 
 use crate::{app::App, command::Command};
@@ -141,20 +178,13 @@ fn run_app<B: ratatui::backend::Backend>(
             // Build vertical list of components
             let selected = app.list_state.selected().unwrap_or(0);
             let components: Vec<_> = app.cmd.iter_components().collect();
-            let component_count = components.len() as u16;
 
-            // Render area for the vertical list
-            let list_area = ratatui::layout::Rect {
-                x: area.x,
-                y: start_y,
-                width: area.width,
-                height: component_count.min(area.height.saturating_sub(start_y)),
-            };
+            let prefix_width: u16 = 3; // " X " where X is the shortcut key
+            let text_width = area.width.saturating_sub(prefix_width) as usize;
 
-            // Build lines for each component
-            let mut lines = Vec::new();
-            let mut cursor_row = 0u16;
-            let mut cursor_col = 0u16;
+            // Pre-calculate wrapped lines and total height
+            let mut wrapped_data: Vec<(String, Vec<String>)> = Vec::new();
+            let mut total_height: u16 = 0;
 
             for (i, component) in components.iter().enumerate() {
                 let text = if app.input_mode && i == selected {
@@ -162,6 +192,33 @@ fn run_app<B: ratatui::backend::Backend>(
                 } else {
                     component.to_string()
                 };
+
+                let prefix_char = get_prefix_char(i)
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| (i + 1).to_string());
+                let prefix = format!(" {} ", prefix_char);
+
+                let wrapped_lines = wrap_text(&text, text_width);
+                total_height += wrapped_lines.len() as u16;
+                wrapped_data.push((prefix, wrapped_lines));
+            }
+
+            // Render area for the vertical list
+            let list_area = ratatui::layout::Rect {
+                x: area.x,
+                y: start_y,
+                width: area.width,
+                height: total_height.min(area.height.saturating_sub(start_y)),
+            };
+
+            // Build rows for the table
+            let mut rows = Vec::new();
+            let mut cursor_row = 0u16;
+            let mut cursor_col = 0u16;
+            let mut cumulative_height: u16 = 0;
+
+            for (i, (prefix, wrapped_lines)) in wrapped_data.into_iter().enumerate() {
+                let row_height = wrapped_lines.len() as u16;
 
                 let style = if i == selected {
                     if app.input_mode {
@@ -173,24 +230,27 @@ fn run_app<B: ratatui::backend::Backend>(
                     Style::default()
                 };
 
-                // Track cursor position for input mode
-                let prefix_char = get_prefix_char(i)
-                    .map(|c| c.to_string())
-                    .unwrap_or_else(|| (i + 1).to_string());
-                let prefix = format!(" {} ", prefix_char);
                 if app.input_mode && i == selected {
-                    cursor_row = i as u16;
-                    cursor_col = prefix.len() as u16 + app.current_input.len() as u16;
+                    cursor_row = cumulative_height;
+                    cursor_col = prefix_width + app.current_input.len() as u16;
                 }
 
-                lines.push(Line::from(vec![
-                    Span::styled(prefix, Style::default().add_modifier(Modifier::DIM)),
-                    Span::styled(text, style),
-                ]));
+                let wrapped_text = Text::from(wrapped_lines.join("\n"));
+                let row = Row::new(vec![
+                    Cell::from(prefix).style(Style::default().add_modifier(Modifier::DIM)),
+                    Cell::from(wrapped_text).style(style),
+                ])
+                .height(row_height);
+                rows.push(row);
+
+                cumulative_height += row_height;
             }
 
-            let list = Paragraph::new(lines);
-            f.render_widget(list, list_area);
+            let table = Table::new(
+                rows,
+                [Constraint::Length(prefix_width), Constraint::Fill(1)],
+            );
+            f.render_widget(table, list_area);
 
             // Set cursor position if in input mode
             if app.input_mode {
