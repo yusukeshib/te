@@ -87,7 +87,7 @@ impl App {
                         crate::command::CommandPart::Value(inserted_value.clone()),
                     );
                     self.list_state.select(Some(position));
-                    self.undo.actions.push(UndoAction::Insert {
+                    self.undo.undo_stack.push(UndoAction::Insert {
                         position,
                         inserted_value,
                     });
@@ -99,7 +99,7 @@ impl App {
                 } => {
                     self.cmd.set_value_at(position, &updated_value);
                     self.list_state.select(Some(position));
-                    self.undo.actions.push(UndoAction::Edit {
+                    self.undo.undo_stack.push(UndoAction::Edit {
                         position,
                         original_value,
                         updated_value,
@@ -118,7 +118,7 @@ impl App {
                     } else {
                         self.list_state.select(Some(position));
                     }
-                    self.undo.actions.push(UndoAction::Delete {
+                    self.undo.undo_stack.push(UndoAction::Delete {
                         position,
                         deleted_value,
                     });

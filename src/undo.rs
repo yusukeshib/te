@@ -18,23 +18,23 @@ pub enum UndoAction {
 }
 
 pub struct Undo {
-    pub actions: Vec<UndoAction>,
+    pub undo_stack: Vec<UndoAction>,
     pub redo_stack: Vec<UndoAction>,
 }
 
 impl Undo {
     pub fn new() -> Self {
         Undo {
-            actions: Vec::new(),
+            undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
     }
     pub fn push(&mut self, action: UndoAction) {
-        self.actions.push(action);
+        self.undo_stack.push(action);
         self.redo_stack.clear();
     }
     pub fn pop(&mut self) -> Option<UndoAction> {
-        self.actions.pop()
+        self.undo_stack.pop()
     }
     pub fn push_redo(&mut self, action: UndoAction) {
         self.redo_stack.push(action);
