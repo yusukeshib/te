@@ -16,6 +16,8 @@ use ratatui::{
 
 /// Wrap text into lines that fit within the given width
 fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    use unicode_width::UnicodeWidthChar;
+
     if width == 0 {
         return vec![text.to_string()];
     }
@@ -33,7 +35,7 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
             continue;
         }
 
-        let char_width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
+        let char_width = UnicodeWidthChar::width(ch).unwrap_or(1);
         if current_width + char_width > width && !current_line.is_empty() {
             lines.push(current_line);
             current_line = String::new();
@@ -231,8 +233,15 @@ fn run_app<B: ratatui::backend::Backend>(
                 };
 
                 if app.input_mode && i == selected {
-                    cursor_row = cumulative_height;
-                    cursor_col = prefix_width + app.current_input.len() as u16;
+                    // Place cursor on the last wrapped line of the current input,
+                    // and at the end of that line using Unicode display width.
+                    use unicode_width::UnicodeWidthStr;
+                    let last_line_width = wrapped_lines
+                        .last()
+                        .map(|line| UnicodeWidthStr::width(line.as_str()) as u16)
+                        .unwrap_or(0);
+                    cursor_row = cumulative_height + row_height.saturating_sub(1);
+                    cursor_col = prefix_width + last_line_width;
                 }
 
                 let wrapped_text = Text::from(wrapped_lines.join("\n"));
@@ -327,5 +336,99 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wrap_text_empty_string() {
+        assert_eq!(wrap_text("", 10), vec![""]);
+    }
+
+    #[test]
+    fn test_wrap_text_zero_width() {
+        assert_eq!(wrap_text("hello", 0), vec!["hello"]);
+    }
+
+    #[test]
+    fn test_wrap_text_fits_within_width() {
+        assert_eq!(wrap_text("hello", 10), vec!["hello"]);
+    }
+
+    #[test]
+    fn test_wrap_text_exact_width() {
+        assert_eq!(wrap_text("hello", 5), vec!["hello"]);
+    }
+
+    #[test]
+    fn test_wrap_text_exceeds_width() {
+        assert_eq!(wrap_text("hello world", 6), vec!["hello ", "world"]);
+    }
+
+    #[test]
+    fn test_wrap_text_long_word_must_break() {
+        assert_eq!(wrap_text("abcdefghij", 5), vec!["abcde", "fghij"]);
+    }
+
+    #[test]
+    fn test_wrap_text_preserves_newlines() {
+        assert_eq!(wrap_text("hello\nworld", 20), vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn test_wrap_text_newline_and_wrap() {
+        assert_eq!(
+            wrap_text("hello\nworld test", 6),
+            vec!["hello", "world ", "test"]
+        );
+    }
+
+    #[test]
+    fn test_wrap_text_multiple_spaces() {
+        // Width 8: "hello  " (7) + "w" (1) = 8, fits on first line
+        assert_eq!(wrap_text("hello  world", 8), vec!["hello  w", "orld"]);
+        // Width 7: "hello  " (7) fits exactly, "world" goes to next line
+        assert_eq!(wrap_text("hello  world", 7), vec!["hello  ", "world"]);
+    }
+
+    #[test]
+    fn test_wrap_text_wide_characters_cjk() {
+        // CJK characters are typically 2 display units wide
+        // "你好" = 4 display units, "世界" = 4 display units
+        assert_eq!(wrap_text("你好世界", 4), vec!["你好", "世界"]);
+    }
+
+    #[test]
+    fn test_wrap_text_wide_characters_mixed() {
+        // "a" = 1, "你" = 2, "b" = 1 -> total 4 display units
+        assert_eq!(wrap_text("a你b", 4), vec!["a你b"]);
+        assert_eq!(wrap_text("a你b", 3), vec!["a你", "b"]);
+    }
+
+    #[test]
+    fn test_wrap_text_emoji() {
+        // Most emojis are 2 display units wide
+        assert_eq!(wrap_text("ab", 4), vec!["ab"]);
+    }
+
+    #[test]
+    fn test_wrap_text_long_sentence() {
+        assert_eq!(
+            wrap_text("the quick brown fox", 10),
+            vec!["the quick ", "brown fox"]
+        );
+    }
+
+    #[test]
+    fn test_wrap_text_trailing_space() {
+        assert_eq!(wrap_text("hello ", 10), vec!["hello "]);
+    }
+
+    #[test]
+    fn test_wrap_text_leading_space() {
+        assert_eq!(wrap_text(" hello", 10), vec![" hello"]);
     }
 }
