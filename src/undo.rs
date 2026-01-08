@@ -1,5 +1,3 @@
-use crate::command::CommandPart;
-
 /// Represents an action that can be undone or redone.
 ///
 /// Each variant stores the necessary information to reverse or replay the action.
@@ -26,7 +24,7 @@ pub enum UndoAction {
     /// To redo: delete the component at `position`.
     Delete {
         position: usize,
-        deleted_value: CommandPart,
+        deleted_value: String,
     },
 }
 

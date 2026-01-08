@@ -1,59 +1,31 @@
 use anyhow::Result;
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum CommandPart {
-    Base(String),
-    Flag(String),
-    Value(String),
-}
-
-impl CommandPart {
-    pub fn as_str(&self) -> &str {
-        match self {
-            CommandPart::Base(s) | CommandPart::Flag(s) | CommandPart::Value(s) => s,
-        }
-    }
-
-    pub fn set_value(&mut self, new_value: &str) -> String {
-        match self {
-            CommandPart::Base(s) | CommandPart::Flag(s) | CommandPart::Value(s) => {
-                let current_value = s.clone();
-                *s = new_value.to_string();
-                return current_value;
-            }
-        }
-    }
-}
-
-impl fmt::Display for CommandPart {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = self.as_str();
-        // Quote and escape if the string contains whitespace or characters that need escaping
-        if s.chars()
-            .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\' | '\n' | '\r' | '\t'))
-        {
-            let mut escaped = String::with_capacity(s.len());
-            for ch in s.chars() {
-                match ch {
-                    '\\' => escaped.push_str("\\\\"),
-                    '"' => escaped.push_str("\\\""),
-                    '\'' => escaped.push_str("\\'"),
-                    '\n' => escaped.push_str("\\n"),
-                    '\r' => escaped.push_str("\\r"),
-                    '\t' => escaped.push_str("\\t"),
-                    _ => escaped.push(ch),
-                }
-            }
-            write!(f, "\"{}\"", escaped)
-        } else {
-            write!(f, "{}", s)
-        }
-    }
-}
-
 pub struct Command {
-    components: Vec<CommandPart>,
+    components: Vec<String>,
+}
+
+/// Quote and escape a string if it contains whitespace or special characters
+fn quote_if_needed(s: &str) -> String {
+    if s.chars()
+        .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\' | '\n' | '\r' | '\t'))
+    {
+        let mut escaped = String::with_capacity(s.len());
+        for ch in s.chars() {
+            match ch {
+                '\\' => escaped.push_str("\\\\"),
+                '"' => escaped.push_str("\\\""),
+                '\'' => escaped.push_str("\\'"),
+                '\n' => escaped.push_str("\\n"),
+                '\r' => escaped.push_str("\\r"),
+                '\t' => escaped.push_str("\\t"),
+                _ => escaped.push(ch),
+            }
+        }
+        format!("\"{}\"", escaped)
+    } else {
+        s.to_string()
+    }
 }
 
 impl Command {
@@ -64,15 +36,18 @@ impl Command {
     /// Panics if `index` is out of bounds (i.e., `index >= self.component_count()`).
     /// Callers must ensure that `index` is a valid component index before calling
     /// this method.
-    pub fn remove_component_at(&mut self, index: usize) -> CommandPart {
+    pub fn remove_component_at(&mut self, index: usize) -> String {
         self.components.remove(index)
     }
+
     pub fn set_value_at(&mut self, index: usize, new_value: &str) -> String {
-        self.components[index].set_value(new_value)
+        std::mem::replace(&mut self.components[index], new_value.to_string())
     }
+
     pub fn component_count(&self) -> usize {
         self.components.len()
     }
+
     /// Returns a reference to the component at the given `index`.
     ///
     /// # Panics
@@ -80,15 +55,16 @@ impl Command {
     /// Panics if `index` is out of bounds (i.e., `index >= self.component_count()`).
     /// Callers must ensure that `index` is a valid component index before calling
     /// this method.
-    pub fn component_at(&self, index: usize) -> &CommandPart {
+    pub fn component_at(&self, index: usize) -> &str {
         &self.components[index]
     }
-    pub fn iter_components(&self) -> impl Iterator<Item = &CommandPart> {
+
+    pub fn iter_components(&self) -> impl Iterator<Item = &String> {
         self.components.iter()
     }
 
-    pub fn insert_component_at(&mut self, index: usize, part: CommandPart) {
-        self.components.insert(index, part);
+    pub fn insert_component_at(&mut self, index: usize, value: String) {
+        self.components.insert(index, value);
     }
 }
 
@@ -98,7 +74,7 @@ impl fmt::Display for Command {
             if idx > 0 {
                 write!(f, " ")?;
             }
-            write!(f, "{}", component)?;
+            write!(f, "{}", quote_if_needed(component))?;
         }
         Ok(())
     }
@@ -126,50 +102,8 @@ impl TryFrom<&str> for Command {
                 continue;
             }
 
-            let mut i = 0;
-
-            // Find where arguments start (first token starting with -)
-            while i < tokens.len() {
-                let token = &tokens[i];
-                if token.starts_with('-') {
-                    break;
-                }
-                components.push(CommandPart::Base(token.clone()));
-                i += 1;
-            }
-
-            // Parse arguments
-            while i < tokens.len() {
-                let token = &tokens[i];
-
-                if token.starts_with('-') {
-                    // Check if it's in the form --flag=value or -f=value
-                    if let Some(eq_pos) = token.find('=') {
-                        let flag = token[..eq_pos].to_string();
-                        let value = token[eq_pos + 1..].to_string();
-                        components.push(CommandPart::Flag(flag));
-                        components.push(CommandPart::Value(value));
-                        i += 1;
-                    } else {
-                        // Check if next token is a value (doesn't start with -)
-                        let flag = token.clone();
-                        if i + 1 < tokens.len() && !tokens[i + 1].starts_with('-') {
-                            let value = tokens[i + 1].clone();
-                            components.push(CommandPart::Flag(flag));
-                            components.push(CommandPart::Value(value));
-                            i += 2;
-                        } else {
-                            // Boolean flag (no value)
-                            components.push(CommandPart::Flag(flag));
-                            i += 1;
-                        }
-                    }
-                } else {
-                    // Unexpected token (not starting with -)
-                    // Treat it as a positional argument
-                    components.push(CommandPart::Value(token.clone()));
-                    i += 1;
-                }
+            for token in tokens {
+                components.push(token);
             }
         }
 
@@ -189,19 +123,13 @@ mod tests {
     fn test_parse_simple_command() {
         let cmd: Command = "kubectl get pods -l app=asset -o json".try_into().unwrap();
 
-        assert_eq!(
-            *cmd.component_at(0),
-            CommandPart::Base("kubectl".to_string())
-        );
-        assert_eq!(*cmd.component_at(1), CommandPart::Base("get".to_string()));
-        assert_eq!(*cmd.component_at(2), CommandPart::Base("pods".to_string()));
-        assert_eq!(*cmd.component_at(3), CommandPart::Flag("-l".to_string()));
-        assert_eq!(
-            *cmd.component_at(4),
-            CommandPart::Value("app=asset".to_string())
-        );
-        assert_eq!(*cmd.component_at(5), CommandPart::Flag("-o".to_string()));
-        assert_eq!(*cmd.component_at(6), CommandPart::Value("json".to_string()));
+        assert_eq!(cmd.component_at(0), "kubectl");
+        assert_eq!(cmd.component_at(1), "get");
+        assert_eq!(cmd.component_at(2), "pods");
+        assert_eq!(cmd.component_at(3), "-l");
+        assert_eq!(cmd.component_at(4), "app=asset");
+        assert_eq!(cmd.component_at(5), "-o");
+        assert_eq!(cmd.component_at(6), "json");
     }
 
     #[test]
@@ -210,56 +138,33 @@ mod tests {
             .try_into()
             .unwrap();
 
-        assert_eq!(
-            *cmd.component_at(0),
-            CommandPart::Base("docker".to_string())
-        );
-        assert_eq!(*cmd.component_at(1), CommandPart::Base("run".to_string()));
-        assert_eq!(
-            *cmd.component_at(2),
-            CommandPart::Flag("--name".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(3),
-            CommandPart::Value("myapp".to_string())
-        );
-        assert_eq!(*cmd.component_at(4), CommandPart::Flag("--env".to_string()));
-        assert_eq!(
-            *cmd.component_at(5),
-            CommandPart::Value("VAR=value".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(6),
-            CommandPart::Value("image".to_string())
-        );
+        assert_eq!(cmd.component_at(0), "docker");
+        assert_eq!(cmd.component_at(1), "run");
+        assert_eq!(cmd.component_at(2), "--name=myapp");
+        assert_eq!(cmd.component_at(3), "--env=VAR=value");
+        assert_eq!(cmd.component_at(4), "image");
     }
 
     #[test]
     fn test_parse_boolean_flags() {
         let cmd: Command = "ls -la /tmp".try_into().unwrap();
 
-        assert_eq!(*cmd.component_at(0), CommandPart::Base("ls".to_string()));
-        // -la might be treated as a single flag with no value
-        // or as two separate flags - depends on shlex behavior
+        assert_eq!(cmd.component_at(0), "ls");
+        assert_eq!(cmd.component_at(1), "-la");
+        assert_eq!(cmd.component_at(2), "/tmp");
     }
 
     #[test]
     fn test_parse_with_quotes() {
         let cmd: Command = "kubectl get pods -o custom-columns='POD:.metadata.name,RS:.metadata.ownerReferences[0].name'".try_into().unwrap();
 
+        assert_eq!(cmd.component_at(0), "kubectl");
+        assert_eq!(cmd.component_at(1), "get");
+        assert_eq!(cmd.component_at(2), "pods");
+        assert_eq!(cmd.component_at(3), "-o");
         assert_eq!(
-            *cmd.component_at(0),
-            CommandPart::Base("kubectl".to_string())
-        );
-        assert_eq!(*cmd.component_at(1), CommandPart::Base("get".to_string()));
-        assert_eq!(*cmd.component_at(2), CommandPart::Base("pods".to_string()));
-        assert_eq!(*cmd.component_at(3), CommandPart::Flag("-o".to_string()));
-        assert_eq!(
-            *cmd.component_at(4),
-            CommandPart::Value(
-                "custom-columns=POD:.metadata.name,RS:.metadata.ownerReferences[0].name"
-                    .to_string()
-            )
+            cmd.component_at(4),
+            "custom-columns=POD:.metadata.name,RS:.metadata.ownerReferences[0].name"
         );
     }
 
@@ -268,62 +173,27 @@ mod tests {
         let cmd: Command = "gcloud alpha pam grants create \\\n  --entitlement=secret-manager-admin \\\n  --requested-duration=28800s".try_into()
             .unwrap();
 
-        assert_eq!(
-            *cmd.component_at(0),
-            CommandPart::Base("gcloud".to_string())
-        );
-        assert_eq!(*cmd.component_at(1), CommandPart::Base("alpha".to_string()));
-        assert_eq!(*cmd.component_at(2), CommandPart::Base("pam".to_string()));
-        assert_eq!(
-            *cmd.component_at(3),
-            CommandPart::Base("grants".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(4),
-            CommandPart::Base("create".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(5),
-            CommandPart::Flag("--entitlement".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(6),
-            CommandPart::Value("secret-manager-admin".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(7),
-            CommandPart::Flag("--requested-duration".to_string())
-        );
-        assert_eq!(
-            *cmd.component_at(8),
-            CommandPart::Value("28800s".to_string())
-        );
+        assert_eq!(cmd.component_at(0), "gcloud");
+        assert_eq!(cmd.component_at(1), "alpha");
+        assert_eq!(cmd.component_at(2), "pam");
+        assert_eq!(cmd.component_at(3), "grants");
+        assert_eq!(cmd.component_at(4), "create");
+        assert_eq!(cmd.component_at(5), "--entitlement=secret-manager-admin");
+        assert_eq!(cmd.component_at(6), "--requested-duration=28800s");
     }
 
     #[test]
-    fn test_comp_display() {
+    fn test_quote_if_needed() {
         // Simple strings without spaces
-        assert_eq!(
-            CommandPart::Base("kubectl".to_string()).to_string(),
-            "kubectl"
-        );
-        assert_eq!(
-            CommandPart::Flag("--name".to_string()).to_string(),
-            "--name"
-        );
-        assert_eq!(CommandPart::Value("myapp".to_string()).to_string(), "myapp");
+        assert_eq!(quote_if_needed("kubectl"), "kubectl");
+        assert_eq!(quote_if_needed("--name"), "--name");
+        assert_eq!(quote_if_needed("myapp"), "myapp");
 
         // String with spaces should be quoted
-        assert_eq!(
-            CommandPart::Value("hello world".to_string()).to_string(),
-            "\"hello world\""
-        );
+        assert_eq!(quote_if_needed("hello world"), "\"hello world\"");
 
         // String with spaces and double quotes should escape quotes
-        assert_eq!(
-            CommandPart::Value("say \"hello\"".to_string()).to_string(),
-            "\"say \\\"hello\\\"\""
-        );
+        assert_eq!(quote_if_needed("say \"hello\""), "\"say \\\"hello\\\"\"");
     }
 
     #[test]
@@ -336,9 +206,9 @@ mod tests {
         let cmd: Command = "echo \"hello world\"".try_into().unwrap();
         assert_eq!(cmd.to_string(), "echo \"hello world\"");
 
-        // Command with --flag=value syntax
+        // Command with --flag=value syntax (now kept as single token)
         let cmd: Command = "docker run --name=myapp image".try_into().unwrap();
-        assert_eq!(cmd.to_string(), "docker run --name myapp image");
+        assert_eq!(cmd.to_string(), "docker run --name=myapp image");
     }
 
     #[test]
@@ -349,10 +219,10 @@ mod tests {
         cmd.remove_component_at(2); // Remove "pods"
 
         assert_eq!(cmd.component_count(), 4);
-        assert_eq!(cmd.component_at(0).as_str(), "kubectl");
-        assert_eq!(cmd.component_at(1).as_str(), "get");
-        assert_eq!(cmd.component_at(2).as_str(), "-n");
-        assert_eq!(cmd.component_at(3).as_str(), "default");
+        assert_eq!(cmd.component_at(0), "kubectl");
+        assert_eq!(cmd.component_at(1), "get");
+        assert_eq!(cmd.component_at(2), "-n");
+        assert_eq!(cmd.component_at(3), "default");
     }
 
     #[test]
@@ -362,8 +232,8 @@ mod tests {
         cmd.remove_component_at(0);
 
         assert_eq!(cmd.component_count(), 2);
-        assert_eq!(cmd.component_at(0).as_str(), "get");
-        assert_eq!(cmd.component_at(1).as_str(), "pods");
+        assert_eq!(cmd.component_at(0), "get");
+        assert_eq!(cmd.component_at(1), "pods");
     }
 
     #[test]
@@ -373,8 +243,8 @@ mod tests {
         cmd.remove_component_at(2);
 
         assert_eq!(cmd.component_count(), 2);
-        assert_eq!(cmd.component_at(0).as_str(), "kubectl");
-        assert_eq!(cmd.component_at(1).as_str(), "get");
+        assert_eq!(cmd.component_at(0), "kubectl");
+        assert_eq!(cmd.component_at(1), "get");
     }
 
     #[test]
