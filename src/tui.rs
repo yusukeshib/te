@@ -16,6 +16,22 @@ use std::fs::OpenOptions;
 
 use crate::{app::App, command::Command};
 
+/// Prefix characters for row shortcuts: 1-9, then available letters (excluding reserved shortcuts)
+const PREFIX_CHARS: [char; 28] = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', 'b', 'c', 'e', 'f', 'g', 'h', 'l', 'm', 'n', 'o',
+    'p', 'r', 's', 't', 'v', 'w', 'x', 'y', 'z',
+];
+
+/// Get prefix character for a given row index (0-based)
+fn get_prefix_char(index: usize) -> Option<char> {
+    PREFIX_CHARS.get(index).copied()
+}
+
+/// Get row index for a given prefix character
+fn get_index_for_prefix(c: char) -> Option<usize> {
+    PREFIX_CHARS.iter().position(|&ch| ch == c)
+}
+
 /// Get cursor position by querying /dev/tty directly using ANSI escape codes
 fn get_cursor_position(tty: &mut std::fs::File) -> Result<(u16, u16)> {
     use std::io::{Read, Write};
@@ -139,7 +155,6 @@ fn run_app<B: ratatui::backend::Backend>(
             let mut lines = Vec::new();
             let mut cursor_row = 0u16;
             let mut cursor_col = 0u16;
-            let num_width = component_count.to_string().len();
 
             for (i, component) in components.iter().enumerate() {
                 let text = if app.input_mode && i == selected {
@@ -159,7 +174,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 };
 
                 // Track cursor position for input mode
-                let prefix = format!(" {:>width$} ", i + 1, width = num_width);
+                let prefix_char = get_prefix_char(i)
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| (i + 1).to_string());
+                let prefix = format!(" {} ", prefix_char);
                 if app.input_mode && i == selected {
                     cursor_row = i as u16;
                     cursor_col = prefix.len() as u16 + app.current_input.len() as u16;
@@ -236,6 +254,14 @@ fn run_app<B: ratatui::backend::Backend>(
                     }
                     KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(true);
+                    }
+                    KeyCode::Char(c) => {
+                        if let Some(index) = get_index_for_prefix(c) {
+                            let component_count = app.cmd.iter_components().count();
+                            if index < component_count {
+                                app.list_state.select(Some(index));
+                            }
+                        }
                     }
                     _ => {}
                 }
