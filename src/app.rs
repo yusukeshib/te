@@ -78,7 +78,7 @@ impl App {
                         crate::command::CommandPart::Value("".to_string()),
                     );
                     self.list_state.select(Some(position));
-                    self.undo.undo_stack.push(UndoAction::Insert { position });
+                    self.undo.push(UndoAction::Insert { position }, false);
                 }
                 UndoAction::Edit {
                     position,
@@ -87,11 +87,14 @@ impl App {
                 } => {
                     self.cmd.set_value_at(position, &updated_value);
                     self.list_state.select(Some(position));
-                    self.undo.undo_stack.push(UndoAction::Edit {
-                        position,
-                        original_value,
-                        updated_value,
-                    });
+                    self.undo.push(
+                        UndoAction::Edit {
+                            position,
+                            original_value,
+                            updated_value,
+                        },
+                        false,
+                    );
                 }
                 UndoAction::Delete {
                     position,
@@ -106,10 +109,13 @@ impl App {
                     } else {
                         self.list_state.select(Some(position));
                     }
-                    self.undo.undo_stack.push(UndoAction::Delete {
-                        position,
-                        deleted_value,
-                    });
+                    self.undo.push(
+                        UndoAction::Delete {
+                            position,
+                            deleted_value,
+                        },
+                        false,
+                    );
                 }
             }
         }
@@ -136,19 +142,25 @@ impl App {
             .insert_component_at(insert_at, CommandPart::Value("".to_string()));
         self.list_state.select(Some(insert_at));
 
-        self.undo.push(UndoAction::Insert {
-            position: insert_at,
-        });
+        self.undo.push(
+            UndoAction::Insert {
+                position: insert_at,
+            },
+            true,
+        );
     }
 
     pub fn delete_selected_component(&mut self) {
         if let Some(selected) = self.list_state.selected() {
             let value = self.cmd.remove_component_at(selected);
 
-            self.undo.push(UndoAction::Delete {
-                position: selected,
-                deleted_value: value,
-            });
+            self.undo.push(
+                UndoAction::Delete {
+                    position: selected,
+                    deleted_value: value,
+                },
+                true,
+            );
 
             let count = self.cmd.component_count();
             if count == 0 {
@@ -199,11 +211,16 @@ impl App {
         if let Some(selected) = self.list_state.selected() {
             let old_value = self.cmd.set_value_at(selected, &self.current_input);
 
-            self.undo.push(UndoAction::Edit {
-                position: selected,
-                original_value: old_value,
-                updated_value: self.current_input.clone(),
-            });
+            if old_value != self.current_input {
+                self.undo.push(
+                    UndoAction::Edit {
+                        position: selected,
+                        original_value: old_value,
+                        updated_value: self.current_input.clone(),
+                    },
+                    true,
+                );
+            }
         }
         self.input_mode = false;
         self.current_input.clear();
