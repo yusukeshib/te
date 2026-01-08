@@ -288,16 +288,57 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(false);
                     }
+                    KeyCode::Char('u') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.current_input.clear();
+                    }
                     KeyCode::Char(c) => app.current_input.push(c),
                     _ => {}
                 }
             } else {
                 match key.code {
-                    KeyCode::Char('u') => {
-                        app.undo();
-                    }
+                    // Ctrl+* shortcuts (must come before non-modifier versions)
                     KeyCode::Char('r') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.redo();
+                    }
+                    KeyCode::Char('n') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.select_next_component()
+                    }
+                    KeyCode::Char('p') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.select_previous_component()
+                    }
+                    KeyCode::Char('a') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.list_state.select(Some(0));
+                    }
+                    KeyCode::Char('e') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        let count = app.cmd.iter_components().count();
+                        if count > 0 {
+                            app.list_state.select(Some(count - 1));
+                        }
+                    }
+                    KeyCode::Char('z') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.undo();
+                    }
+                    KeyCode::Char('y') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.redo();
+                    }
+                    KeyCode::Char('Z') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.redo();
+                    }
+                    KeyCode::Char('d') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.delete_selected_component()
+                    }
+                    KeyCode::Enter if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        return Ok(true);
+                    }
+                    KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        return Ok(false);
+                    }
+                    KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        return Ok(true);
+                    }
+                    // Non-modifier shortcuts
+                    KeyCode::Char('u') => {
+                        app.undo();
                     }
                     KeyCode::Char('i') => {
                         app.insert_new_component();
@@ -312,18 +353,24 @@ fn run_app<B: ratatui::backend::Backend>(
                     }
                     KeyCode::Down | KeyCode::Char('j') => app.select_next_component(),
                     KeyCode::Up | KeyCode::Char('k') => app.select_previous_component(),
-                    KeyCode::Enter if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        return Ok(true);
+                    KeyCode::Home => {
+                        app.list_state.select(Some(0));
+                    }
+                    KeyCode::End => {
+                        let count = app.cmd.iter_components().count();
+                        if count > 0 {
+                            app.list_state.select(Some(count - 1));
+                        }
+                    }
+                    KeyCode::Char('G') => {
+                        let count = app.cmd.iter_components().count();
+                        if count > 0 {
+                            app.list_state.select(Some(count - 1));
+                        }
                     }
                     KeyCode::Enter => app.start_input(),
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
-                    KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        return Ok(false);
-                    }
-                    KeyCode::Char('x') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        return Ok(true);
-                    }
                     KeyCode::Char(c) => {
                         if let Some(index) = get_index_for_prefix(c) {
                             let component_count = app.cmd.iter_components().count();
