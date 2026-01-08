@@ -203,6 +203,12 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             } else {
                 match key.code {
+                    KeyCode::Char('z') => {
+                        app.undo();
+                    }
+                    KeyCode::Char('Z') => {
+                        app.redo();
+                    }
                     KeyCode::Char('i') => {
                         app.insert_new_component();
                         app.start_input();

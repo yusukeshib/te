@@ -15,10 +15,12 @@ impl CommandPart {
         }
     }
 
-    pub fn set_value(&mut self, new_value: &str) {
+    pub fn set_value(&mut self, new_value: &str) -> String {
         match self {
             CommandPart::Base(s) | CommandPart::Flag(s) | CommandPart::Value(s) => {
-                *s = new_value.to_string()
+                let current_value = s.clone();
+                *s = new_value.to_string();
+                return current_value;
             }
         }
     }
@@ -62,11 +64,11 @@ impl Command {
     /// Panics if `index` is out of bounds (i.e., `index >= self.component_count()`).
     /// Callers must ensure that `index` is a valid component index before calling
     /// this method.
-    pub fn remove_component_at(&mut self, index: usize) {
-        self.components.remove(index);
+    pub fn remove_component_at(&mut self, index: usize) -> CommandPart {
+        self.components.remove(index)
     }
-    pub fn set_value_at(&mut self, index: usize, new_value: &str) {
-        self.components[index].set_value(new_value);
+    pub fn set_value_at(&mut self, index: usize, new_value: &str) -> String {
+        self.components[index].set_value(new_value)
     }
     pub fn component_count(&self) -> usize {
         self.components.len()
