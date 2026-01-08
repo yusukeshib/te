@@ -187,6 +187,9 @@ fn run_app<B: ratatui::backend::Backend>(
 
             if app.input_mode {
                 match key.code {
+                    KeyCode::Enter if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
+                        return Ok(true);
+                    }
                     KeyCode::Enter => app.confirm_input(),
                     KeyCode::Esc => app.cancel_input(),
                     KeyCode::Backspace => {
@@ -203,10 +206,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             } else {
                 match key.code {
-                    KeyCode::Char('z') => {
+                    KeyCode::Char('u') => {
                         app.undo();
                     }
-                    KeyCode::Char('Z') => {
+                    KeyCode::Char('r') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.redo();
                     }
                     KeyCode::Char('i') => {
@@ -222,6 +225,9 @@ fn run_app<B: ratatui::backend::Backend>(
                     }
                     KeyCode::Down | KeyCode::Char('j') => app.select_next_component(),
                     KeyCode::Up | KeyCode::Char('k') => app.select_previous_component(),
+                    KeyCode::Enter if key.modifiers.contains(event::KeyModifiers::SHIFT) => {
+                        return Ok(true);
+                    }
                     KeyCode::Enter => app.start_input(),
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => return Ok(false),
