@@ -160,7 +160,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 let text = if app.input_mode && i == selected {
                     app.current_input.clone()
                 } else {
-                    component.as_str().to_string()
+                    component.to_string()
                 };
 
                 let style = if i == selected {

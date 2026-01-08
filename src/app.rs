@@ -1,5 +1,5 @@
 use crate::{
-    command::{Command, CommandPart},
+    command::Command,
     undo::{Undo, UndoAction},
 };
 use ratatui::widgets::ListState;
@@ -73,10 +73,7 @@ impl App {
         if let Some(action) = self.undo.pop_redo() {
             match action {
                 UndoAction::Insert { position } => {
-                    self.cmd.insert_component_at(
-                        position,
-                        crate::command::CommandPart::Value("".to_string()),
-                    );
+                    self.cmd.insert_component_at(position, String::new());
                     self.list_state.select(Some(position));
                     self.undo.push(UndoAction::Insert { position }, false);
                 }
@@ -138,8 +135,7 @@ impl App {
     }
 
     fn insert_new_component_at(&mut self, insert_at: usize) {
-        self.cmd
-            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
+        self.cmd.insert_component_at(insert_at, String::new());
         self.list_state.select(Some(insert_at));
 
         self.undo.push(
@@ -203,7 +199,7 @@ impl App {
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
             self.input_mode = true;
-            self.current_input = self.cmd.component_at(selected).as_str().to_string();
+            self.current_input = self.cmd.component_at(selected).to_string();
         }
     }
 
@@ -252,7 +248,7 @@ mod tests {
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(2));
         // Now index 2 should be "-n"
-        assert_eq!(app.cmd.component_at(2).as_str(), "-n");
+        assert_eq!(app.cmd.component_at(2), "-n");
     }
 
     #[test]
@@ -302,7 +298,7 @@ mod tests {
         assert_eq!(app.cmd.component_count(), 2);
         // Selection stays at 0
         assert_eq!(app.list_state.selected(), Some(0));
-        assert_eq!(app.cmd.component_at(0).as_str(), "get");
+        assert_eq!(app.cmd.component_at(0), "get");
     }
 
     #[test]
@@ -314,8 +310,8 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(0));
-        assert_eq!(app.cmd.component_at(0).as_str(), "");
-        assert_eq!(app.cmd.component_at(1).as_str(), "kubectl");
+        assert_eq!(app.cmd.component_at(0), "");
+        assert_eq!(app.cmd.component_at(1), "kubectl");
     }
 
     #[test]
@@ -327,9 +323,9 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(1));
-        assert_eq!(app.cmd.component_at(0).as_str(), "kubectl");
-        assert_eq!(app.cmd.component_at(1).as_str(), "");
-        assert_eq!(app.cmd.component_at(2).as_str(), "get");
+        assert_eq!(app.cmd.component_at(0), "kubectl");
+        assert_eq!(app.cmd.component_at(1), "");
+        assert_eq!(app.cmd.component_at(2), "get");
     }
 
     #[test]
@@ -341,7 +337,7 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(0));
-        assert_eq!(app.cmd.component_at(0).as_str(), "");
+        assert_eq!(app.cmd.component_at(0), "");
     }
 
     #[test]
@@ -353,9 +349,9 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(1));
-        assert_eq!(app.cmd.component_at(0).as_str(), "kubectl");
-        assert_eq!(app.cmd.component_at(1).as_str(), "");
-        assert_eq!(app.cmd.component_at(2).as_str(), "get");
+        assert_eq!(app.cmd.component_at(0), "kubectl");
+        assert_eq!(app.cmd.component_at(1), "");
+        assert_eq!(app.cmd.component_at(2), "get");
     }
 
     #[test]
@@ -367,9 +363,9 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(2));
-        assert_eq!(app.cmd.component_at(1).as_str(), "get");
-        assert_eq!(app.cmd.component_at(2).as_str(), "");
-        assert_eq!(app.cmd.component_at(3).as_str(), "pods");
+        assert_eq!(app.cmd.component_at(1), "get");
+        assert_eq!(app.cmd.component_at(2), "");
+        assert_eq!(app.cmd.component_at(3), "pods");
     }
 
     #[test]
@@ -381,7 +377,7 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(3));
-        assert_eq!(app.cmd.component_at(3).as_str(), "");
+        assert_eq!(app.cmd.component_at(3), "");
     }
 
     #[test]
@@ -393,6 +389,6 @@ mod tests {
 
         assert_eq!(app.cmd.component_count(), 4);
         assert_eq!(app.list_state.selected(), Some(3));
-        assert_eq!(app.cmd.component_at(3).as_str(), "");
+        assert_eq!(app.cmd.component_at(3), "");
     }
 }
