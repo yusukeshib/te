@@ -8,10 +8,49 @@ use crossterm::{
 use ratatui::{
     Terminal, TerminalOptions, Viewport,
     backend::CrosstermBackend,
+    layout::Constraint,
     style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::Paragraph,
+    text::Text,
+    widgets::{Cell, Row, Table},
 };
+
+/// Wrap text into lines that fit within the given width
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    use unicode_width::UnicodeWidthChar;
+
+    if width == 0 {
+        return vec![text.to_string()];
+    }
+
+    let mut lines = Vec::new();
+    let mut current_line = String::new();
+    let mut current_width = 0;
+
+    for ch in text.chars() {
+        // Handle existing line breaks
+        if ch == '\n' {
+            lines.push(current_line);
+            current_line = String::new();
+            current_width = 0;
+            continue;
+        }
+
+        let char_width = UnicodeWidthChar::width(ch).unwrap_or(1);
+        if current_width + char_width > width && !current_line.is_empty() {
+            lines.push(current_line);
+            current_line = String::new();
+            current_width = 0;
+        }
+        current_line.push(ch);
+        current_width += char_width;
+    }
+
+    if !current_line.is_empty() || lines.is_empty() {
+        lines.push(current_line);
+    }
+
+    lines
+}
 use std::fs::OpenOptions;
 
 use crate::{app::App, command::Command};
@@ -141,20 +180,13 @@ fn run_app<B: ratatui::backend::Backend>(
             // Build vertical list of components
             let selected = app.list_state.selected().unwrap_or(0);
             let components: Vec<_> = app.cmd.iter_components().collect();
-            let component_count = components.len() as u16;
 
-            // Render area for the vertical list
-            let list_area = ratatui::layout::Rect {
-                x: area.x,
-                y: start_y,
-                width: area.width,
-                height: component_count.min(area.height.saturating_sub(start_y)),
-            };
+            let prefix_width: u16 = 3; // " X " where X is the shortcut key
+            let text_width = area.width.saturating_sub(prefix_width) as usize;
 
-            // Build lines for each component
-            let mut lines = Vec::new();
-            let mut cursor_row = 0u16;
-            let mut cursor_col = 0u16;
+            // Pre-calculate wrapped lines and total height
+            let mut wrapped_data: Vec<(String, Vec<String>)> = Vec::new();
+            let mut total_height: u16 = 0;
 
             for (i, component) in components.iter().enumerate() {
                 let text = if app.input_mode && i == selected {
@@ -162,6 +194,33 @@ fn run_app<B: ratatui::backend::Backend>(
                 } else {
                     component.to_string()
                 };
+
+                let prefix_char = get_prefix_char(i)
+                    .map(|c| c.to_string())
+                    .unwrap_or_else(|| (i + 1).to_string());
+                let prefix = format!(" {} ", prefix_char);
+
+                let wrapped_lines = wrap_text(&text, text_width);
+                total_height += wrapped_lines.len() as u16;
+                wrapped_data.push((prefix, wrapped_lines));
+            }
+
+            // Render area for the vertical list
+            let list_area = ratatui::layout::Rect {
+                x: area.x,
+                y: start_y,
+                width: area.width,
+                height: total_height.min(area.height.saturating_sub(start_y)),
+            };
+
+            // Build rows for the table
+            let mut rows = Vec::new();
+            let mut cursor_row = 0u16;
+            let mut cursor_col = 0u16;
+            let mut cumulative_height: u16 = 0;
+
+            for (i, (prefix, wrapped_lines)) in wrapped_data.into_iter().enumerate() {
+                let row_height = wrapped_lines.len() as u16;
 
                 let style = if i == selected {
                     if app.input_mode {
@@ -173,24 +232,34 @@ fn run_app<B: ratatui::backend::Backend>(
                     Style::default()
                 };
 
-                // Track cursor position for input mode
-                let prefix_char = get_prefix_char(i)
-                    .map(|c| c.to_string())
-                    .unwrap_or_else(|| (i + 1).to_string());
-                let prefix = format!(" {} ", prefix_char);
                 if app.input_mode && i == selected {
-                    cursor_row = i as u16;
-                    cursor_col = prefix.len() as u16 + app.current_input.len() as u16;
+                    // Place cursor on the last wrapped line of the current input,
+                    // and at the end of that line using Unicode display width.
+                    use unicode_width::UnicodeWidthStr;
+                    let last_line_width = wrapped_lines
+                        .last()
+                        .map(|line| UnicodeWidthStr::width(line.as_str()) as u16)
+                        .unwrap_or(0);
+                    cursor_row = cumulative_height + row_height.saturating_sub(1);
+                    cursor_col = prefix_width + last_line_width;
                 }
 
-                lines.push(Line::from(vec![
-                    Span::styled(prefix, Style::default().add_modifier(Modifier::DIM)),
-                    Span::styled(text, style),
-                ]));
+                let wrapped_text = Text::from(wrapped_lines.join("\n"));
+                let row = Row::new(vec![
+                    Cell::from(prefix).style(Style::default().add_modifier(Modifier::DIM)),
+                    Cell::from(wrapped_text).style(style),
+                ])
+                .height(row_height);
+                rows.push(row);
+
+                cumulative_height += row_height;
             }
 
-            let list = Paragraph::new(lines);
-            f.render_widget(list, list_area);
+            let table = Table::new(
+                rows,
+                [Constraint::Length(prefix_width), Constraint::Fill(1)],
+            );
+            f.render_widget(table, list_area);
 
             // Set cursor position if in input mode
             if app.input_mode {
@@ -267,5 +336,99 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wrap_text_empty_string() {
+        assert_eq!(wrap_text("", 10), vec![""]);
+    }
+
+    #[test]
+    fn test_wrap_text_zero_width() {
+        assert_eq!(wrap_text("hello", 0), vec!["hello"]);
+    }
+
+    #[test]
+    fn test_wrap_text_fits_within_width() {
+        assert_eq!(wrap_text("hello", 10), vec!["hello"]);
+    }
+
+    #[test]
+    fn test_wrap_text_exact_width() {
+        assert_eq!(wrap_text("hello", 5), vec!["hello"]);
+    }
+
+    #[test]
+    fn test_wrap_text_exceeds_width() {
+        assert_eq!(wrap_text("hello world", 6), vec!["hello ", "world"]);
+    }
+
+    #[test]
+    fn test_wrap_text_long_word_must_break() {
+        assert_eq!(wrap_text("abcdefghij", 5), vec!["abcde", "fghij"]);
+    }
+
+    #[test]
+    fn test_wrap_text_preserves_newlines() {
+        assert_eq!(wrap_text("hello\nworld", 20), vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn test_wrap_text_newline_and_wrap() {
+        assert_eq!(
+            wrap_text("hello\nworld test", 6),
+            vec!["hello", "world ", "test"]
+        );
+    }
+
+    #[test]
+    fn test_wrap_text_multiple_spaces() {
+        // Width 8: "hello  " (7) + "w" (1) = 8, fits on first line
+        assert_eq!(wrap_text("hello  world", 8), vec!["hello  w", "orld"]);
+        // Width 7: "hello  " (7) fits exactly, "world" goes to next line
+        assert_eq!(wrap_text("hello  world", 7), vec!["hello  ", "world"]);
+    }
+
+    #[test]
+    fn test_wrap_text_wide_characters_cjk() {
+        // CJK characters are typically 2 display units wide
+        // "你好" = 4 display units, "世界" = 4 display units
+        assert_eq!(wrap_text("你好世界", 4), vec!["你好", "世界"]);
+    }
+
+    #[test]
+    fn test_wrap_text_wide_characters_mixed() {
+        // "a" = 1, "你" = 2, "b" = 1 -> total 4 display units
+        assert_eq!(wrap_text("a你b", 4), vec!["a你b"]);
+        assert_eq!(wrap_text("a你b", 3), vec!["a你", "b"]);
+    }
+
+    #[test]
+    fn test_wrap_text_emoji() {
+        // Most emojis are 2 display units wide
+        assert_eq!(wrap_text("ab", 4), vec!["ab"]);
+    }
+
+    #[test]
+    fn test_wrap_text_long_sentence() {
+        assert_eq!(
+            wrap_text("the quick brown fox", 10),
+            vec!["the quick ", "brown fox"]
+        );
+    }
+
+    #[test]
+    fn test_wrap_text_trailing_space() {
+        assert_eq!(wrap_text("hello ", 10), vec!["hello "]);
+    }
+
+    #[test]
+    fn test_wrap_text_leading_space() {
+        assert_eq!(wrap_text(" hello", 10), vec![" hello"]);
     }
 }
