@@ -4,7 +4,6 @@ use crate::command::CommandPart;
 pub enum UndoAction {
     Insert {
         position: usize,
-        inserted_value: String,
     },
     Edit {
         position: usize,
@@ -17,18 +16,13 @@ pub enum UndoAction {
     },
 }
 
+#[derive(Default)]
 pub struct Undo {
     pub undo_stack: Vec<UndoAction>,
     pub redo_stack: Vec<UndoAction>,
 }
 
 impl Undo {
-    pub fn new() -> Self {
-        Undo {
-            undo_stack: Vec::new(),
-            redo_stack: Vec::new(),
-        }
-    }
     pub fn push(&mut self, action: UndoAction) {
         self.undo_stack.push(action);
         self.redo_stack.clear();

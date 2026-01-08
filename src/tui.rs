@@ -203,10 +203,10 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             } else {
                 match key.code {
-                    KeyCode::Char('z') => {
+                    KeyCode::Char('z') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.undo();
                     }
-                    KeyCode::Char('Z') => {
+                    KeyCode::Char('Z') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.redo();
                     }
                     KeyCode::Char('i') => {

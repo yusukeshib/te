@@ -20,7 +20,7 @@ impl App {
             list_state: ListState::default().with_selected(Some(0)),
             input_mode: false,
             current_input: String::new(),
-            undo: Undo::new(),
+            undo: Default::default(),
             cursor_y,
         }
     }
@@ -28,10 +28,7 @@ impl App {
     pub fn undo(&mut self) {
         if let Some(last) = self.undo.pop() {
             match last {
-                UndoAction::Insert {
-                    position,
-                    inserted_value,
-                } => {
+                UndoAction::Insert { position } => {
                     self.cmd.remove_component_at(position);
                     let count = self.cmd.component_count();
                     if count == 0 {
@@ -41,10 +38,7 @@ impl App {
                     } else {
                         self.list_state.select(Some(position));
                     }
-                    self.undo.push_redo(UndoAction::Insert {
-                        position,
-                        inserted_value,
-                    });
+                    self.undo.push_redo(UndoAction::Insert { position });
                 }
                 UndoAction::Edit {
                     position,
@@ -78,19 +72,13 @@ impl App {
     pub fn redo(&mut self) {
         if let Some(action) = self.undo.pop_redo() {
             match action {
-                UndoAction::Insert {
-                    position,
-                    inserted_value,
-                } => {
+                UndoAction::Insert { position } => {
                     self.cmd.insert_component_at(
                         position,
-                        crate::command::CommandPart::Value(inserted_value.clone()),
+                        crate::command::CommandPart::Value("".to_string()),
                     );
                     self.list_state.select(Some(position));
-                    self.undo.undo_stack.push(UndoAction::Insert {
-                        position,
-                        inserted_value,
-                    });
+                    self.undo.undo_stack.push(UndoAction::Insert { position });
                 }
                 UndoAction::Edit {
                     position,
@@ -144,15 +132,13 @@ impl App {
     }
 
     fn insert_new_component_at(&mut self, insert_at: usize) {
-        let value = "".to_string();
         self.cmd
-            .insert_component_at(insert_at, CommandPart::Value(value.clone()));
+            .insert_component_at(insert_at, CommandPart::Value("".to_string()));
         self.list_state.select(Some(insert_at));
 
         self.undo.push(UndoAction::Insert {
             position: insert_at,
-            inserted_value: value,
-        })
+        });
     }
 
     pub fn delete_selected_component(&mut self) {
@@ -217,7 +203,7 @@ impl App {
                 position: selected,
                 original_value: old_value,
                 updated_value: self.current_input.clone(),
-            })
+            });
         }
         self.input_mode = false;
         self.current_input.clear();
