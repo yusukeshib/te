@@ -8,7 +8,7 @@ pub struct Command {
 fn quote_if_needed(s: &str) -> String {
     let needs_quoting = s
         .chars()
-        .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\'));
+        .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\' | '\n' | '\r' | '\t'));
 
     if needs_quoting {
         // Choose quote style based on which quote char appears more
@@ -16,18 +16,22 @@ fn quote_if_needed(s: &str) -> String {
         let single_quotes = s.chars().filter(|&c| c == '\'').count();
 
         if double_quotes > single_quotes {
-            // Use single quotes, escape single quotes
-            let mut escaped = String::with_capacity(s.len());
+            // Use single quotes; to include a single quote in a single-quoted
+            // shell string, close the quote, add an escaped quote, and reopen.
+            // E.g., abc'def becomes 'abc'\''def'
+            // Note: In single quotes, backslashes are literal (no escaping needed)
+            let mut quoted = String::with_capacity(s.len() + 2);
+            quoted.push('\'');
             for ch in s.chars() {
                 match ch {
-                    '\\' => escaped.push_str("\\\\"),
-                    '\'' => escaped.push_str("\\'"),
-                    _ => escaped.push(ch),
+                    '\'' => quoted.push_str("'\\''"),
+                    _ => quoted.push(ch),
                 }
             }
-            format!("'{}'", escaped)
+            quoted.push('\'');
+            quoted
         } else {
-            // Use double quotes, escape double quotes
+            // Use double quotes, escape backslashes and double quotes
             let mut escaped = String::with_capacity(s.len());
             for ch in s.chars() {
                 match ch {
@@ -201,10 +205,14 @@ mod tests {
         assert_eq!(quote_if_needed("--name"), "--name");
         assert_eq!(quote_if_needed("myapp"), "myapp");
 
+        // Empty string - no quoting needed
+        assert_eq!(quote_if_needed(""), "");
+
         // String with spaces - use double quotes (default)
         assert_eq!(quote_if_needed("hello world"), "\"hello world\"");
 
         // String with double quotes (2 > 0 single) - use single quotes
+        // Single quotes preserve the double quotes literally
         assert_eq!(quote_if_needed("say \"hello\""), "'say \"hello\"'");
 
         // String with more double quotes than single - use single quotes
@@ -217,9 +225,41 @@ mod tests {
         assert_eq!(quote_if_needed("it's fine"), "\"it's fine\"");
 
         // String with more single quotes than double - use double quotes
+        assert_eq!(quote_if_needed("it's Bob's day"), "\"it's Bob's day\"");
+
+        // More double quotes (2) than single (1) - use single quotes with '\'' escape
+        assert_eq!(quote_if_needed("it's \"ok\""), "'it'\\''s \"ok\"'");
+
+        // Equal single and double quotes (1 each) - prefer double quotes
+        assert_eq!(quote_if_needed("it's x\""), "\"it's x\\\"\"");
+
+        // String with only backslashes - needs quoting and escaping
+        assert_eq!(quote_if_needed("path\\to\\file"), "\"path\\\\to\\\\file\"");
+
+        // String with dollar sign - quoted due to space, but $ not escaped (allow variable expansion)
+        assert_eq!(quote_if_needed("test $HOME"), "\"test $HOME\"");
+
+        // String with backtick - quoted due to space, but ` not escaped (allow command substitution)
+        assert_eq!(quote_if_needed("run `cmd`"), "\"run `cmd`\"");
+
+        // Dollar sign alone - no quoting needed
+        assert_eq!(quote_if_needed("$HOME"), "$HOME");
+
+        // Backtick alone - no quoting needed
+        assert_eq!(quote_if_needed("`cmd`"), "`cmd`");
+
+        // String with newline - needs quoting (preserved in quotes)
+        assert_eq!(quote_if_needed("line1\nline2"), "\"line1\nline2\"");
+
+        // String with tab - needs quoting (preserved in quotes)
+        assert_eq!(quote_if_needed("col1\tcol2"), "\"col1\tcol2\"");
+
+        // Single quote inside single-quoted string uses '\'' technique
+        // When we have more double quotes than single quotes, we use single quotes
+        // and escape single quotes with '\''
         assert_eq!(
-            quote_if_needed("it's Bob's day"),
-            "\"it's Bob's day\""
+            quote_if_needed("say \"hello\" it's \"great\""),
+            "'say \"hello\" it'\\''s \"great\"'"
         );
     }
 
