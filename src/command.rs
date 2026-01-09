@@ -4,7 +4,38 @@ pub struct Command {
     components: Vec<String>,
 }
 
-/// Quote and escape a string for shell output
+/// Quotes a string so it can be safely passed as a single shell argument.
+///
+/// This helper chooses a quoting style and escapes only the characters required
+/// for correct shell parsing, allowing intentional use of features like
+/// variable expansion and command substitution.
+///
+/// Quoting strategy:
+/// - If the string contains any whitespace or the characters `"`, `'`, `\`,
+///   newline (`\n`), carriage return (`\r`), or tab (`\t`), it is wrapped in
+///   quotes; otherwise it is returned unchanged.
+/// - The function counts both single (`'`) and double (`"`) quotes and chooses
+///   the quote style that minimizes escaping:
+///   - If there are more double quotes than single quotes, the string is
+///     wrapped in single quotes.
+///   - Otherwise, the string is wrapped in double quotes.
+///
+/// Escaping rules:
+/// - In single-quoted mode, the string is wrapped in `'...'`. Any literal
+///   single quote inside is represented by closing the quote, adding an
+///   escaped single quote, and reopening the quote (e.g. `abc'def` becomes
+///   `'abc'\''def'`). Backslashes and all other characters are left as-is.
+/// - In double-quoted mode, the string is wrapped in `"..."`. Within the
+///   double quotes, backslashes (`\`) and double quotes (`"`) are prefixed
+///   with a backslash; all other characters are left unchanged.
+///
+/// Special characters:
+/// - Dollar signs (`$`) and backticks (`` ` ``) are intentionally *not*
+///   escaped in either mode so that shell variable expansion and command
+///   substitution can still occur when using the resulting string.
+/// - Newlines (`\n`), tabs (`\t`), and other whitespace are preserved
+///   literally inside the chosen quotes; their presence is what triggers
+///   quoting in the first place.
 fn quote_if_needed(s: &str) -> String {
     let needs_quoting = s
         .chars()
@@ -260,6 +291,19 @@ mod tests {
         assert_eq!(
             quote_if_needed("say \"hello\" it's \"great\""),
             "'say \"hello\" it'\\''s \"great\"'"
+        );
+
+        // String with newline AND more double quotes - uses single quotes
+        // (single quotes can contain literal newlines)
+        assert_eq!(
+            quote_if_needed("line1\nline2 \"quoted\""),
+            "'line1\nline2 \"quoted\"'"
+        );
+
+        // String with tab AND more double quotes - uses single quotes
+        assert_eq!(
+            quote_if_needed("col1\tcol2 \"data\""),
+            "'col1\tcol2 \"data\"'"
         );
     }
 
