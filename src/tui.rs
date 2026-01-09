@@ -300,11 +300,14 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char('r') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.redo();
                     }
+                    KeyCode::Char('y') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        app.redo();
+                    }
                     KeyCode::Char('n') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        app.select_next_component()
+                        app.select_next_component();
                     }
                     KeyCode::Char('p') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        app.select_previous_component()
+                        app.select_previous_component();
                     }
                     KeyCode::Char('a') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.list_state.select(Some(0));
@@ -318,14 +321,11 @@ fn run_app<B: ratatui::backend::Backend>(
                     KeyCode::Char('z') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.undo();
                     }
-                    KeyCode::Char('y') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        app.redo();
-                    }
                     KeyCode::Char('Z') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         app.redo();
                     }
                     KeyCode::Char('d') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
-                        app.delete_selected_component()
+                        app.delete_selected_component();
                     }
                     KeyCode::Enter if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
                         return Ok(true);
