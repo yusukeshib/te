@@ -157,7 +157,7 @@ pub fn run_tui(command_str: &str) -> Result<Option<String>> {
     match result {
         Ok(should_execute) => {
             if should_execute {
-                Ok(Some(app.cmd.to_string()))
+                Ok(Some(app.cmd.to_shell_string()))
             } else {
                 Ok(None)
             }

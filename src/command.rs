@@ -1,28 +1,78 @@
 use anyhow::Result;
-use std::fmt;
 
 pub struct Command {
     components: Vec<String>,
 }
 
-/// Quote and escape a string if it contains whitespace or special characters
+/// Quotes a string so it can be safely passed as a single shell argument.
+///
+/// This helper chooses a quoting style and escapes only the characters required
+/// for correct shell parsing, allowing intentional use of features like
+/// variable expansion and command substitution.
+///
+/// Quoting strategy:
+/// - If the string contains any whitespace or the characters `"`, `'`, `\`,
+///   newline (`\n`), carriage return (`\r`), or tab (`\t`), it is wrapped in
+///   quotes; otherwise it is returned unchanged.
+/// - The function counts both single (`'`) and double (`"`) quotes and chooses
+///   the quote style that minimizes escaping:
+///   - If there are more double quotes than single quotes, the string is
+///     wrapped in single quotes.
+///   - Otherwise, the string is wrapped in double quotes.
+///
+/// Escaping rules:
+/// - In single-quoted mode, the string is wrapped in `'...'`. Any literal
+///   single quote inside is represented by closing the quote, adding an
+///   escaped single quote, and reopening the quote (e.g. `abc'def` becomes
+///   `'abc'\''def'`). Backslashes and all other characters are left as-is.
+/// - In double-quoted mode, the string is wrapped in `"..."`. Within the
+///   double quotes, backslashes (`\`) and double quotes (`"`) are prefixed
+///   with a backslash; all other characters are left unchanged.
+///
+/// Special characters:
+/// - Dollar signs (`$`) and backticks (`` ` ``) are intentionally *not*
+///   escaped in either mode so that shell variable expansion and command
+///   substitution can still occur when using the resulting string.
+/// - Newlines (`\n`), tabs (`\t`), and other whitespace are preserved
+///   literally inside the chosen quotes; their presence is what triggers
+///   quoting in the first place.
 fn quote_if_needed(s: &str) -> String {
-    if s.chars()
-        .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\' | '\n' | '\r' | '\t'))
-    {
-        let mut escaped = String::with_capacity(s.len());
-        for ch in s.chars() {
-            match ch {
-                '\\' => escaped.push_str("\\\\"),
-                '"' => escaped.push_str("\\\""),
-                '\'' => escaped.push_str("\\'"),
-                '\n' => escaped.push_str("\\n"),
-                '\r' => escaped.push_str("\\r"),
-                '\t' => escaped.push_str("\\t"),
-                _ => escaped.push(ch),
+    let needs_quoting = s
+        .chars()
+        .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\' | '\n' | '\r' | '\t'));
+
+    if needs_quoting {
+        // Choose quote style based on which quote char appears more
+        let double_quotes = s.chars().filter(|&c| c == '"').count();
+        let single_quotes = s.chars().filter(|&c| c == '\'').count();
+
+        if double_quotes > single_quotes {
+            // Use single quotes; to include a single quote in a single-quoted
+            // shell string, close the quote, add an escaped quote, and reopen.
+            // E.g., abc'def becomes 'abc'\''def'
+            // Note: In single quotes, backslashes are literal (no escaping needed)
+            let mut quoted = String::with_capacity(s.len() + 2);
+            quoted.push('\'');
+            for ch in s.chars() {
+                match ch {
+                    '\'' => quoted.push_str("'\\''"),
+                    _ => quoted.push(ch),
+                }
             }
+            quoted.push('\'');
+            quoted
+        } else {
+            // Use double quotes, escape backslashes and double quotes
+            let mut escaped = String::with_capacity(s.len());
+            for ch in s.chars() {
+                match ch {
+                    '\\' => escaped.push_str("\\\\"),
+                    '"' => escaped.push_str("\\\""),
+                    _ => escaped.push(ch),
+                }
+            }
+            format!("\"{}\"", escaped)
         }
-        format!("\"{}\"", escaped)
     } else {
         s.to_string()
     }
@@ -66,17 +116,14 @@ impl Command {
     pub fn insert_component_at(&mut self, index: usize, value: String) {
         self.components.insert(index, value);
     }
-}
 
-impl fmt::Display for Command {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (idx, component) in self.components.iter().enumerate() {
-            if idx > 0 {
-                write!(f, " ")?;
-            }
-            write!(f, "{}", quote_if_needed(component))?;
-        }
-        Ok(())
+    /// Convert command to a shell-safe string with proper quoting
+    pub fn to_shell_string(&self) -> String {
+        self.components
+            .iter()
+            .map(|c| quote_if_needed(c))
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 
@@ -184,31 +231,95 @@ mod tests {
 
     #[test]
     fn test_quote_if_needed() {
-        // Simple strings without spaces
+        // Simple strings without spaces - no quoting needed
         assert_eq!(quote_if_needed("kubectl"), "kubectl");
         assert_eq!(quote_if_needed("--name"), "--name");
         assert_eq!(quote_if_needed("myapp"), "myapp");
 
-        // String with spaces should be quoted
+        // Empty string - no quoting needed
+        assert_eq!(quote_if_needed(""), "");
+
+        // String with spaces - use double quotes (default)
         assert_eq!(quote_if_needed("hello world"), "\"hello world\"");
 
-        // String with spaces and double quotes should escape quotes
-        assert_eq!(quote_if_needed("say \"hello\""), "\"say \\\"hello\\\"\"");
+        // String with double quotes (2 > 0 single) - use single quotes
+        // Single quotes preserve the double quotes literally
+        assert_eq!(quote_if_needed("say \"hello\""), "'say \"hello\"'");
+
+        // String with more double quotes than single - use single quotes
+        assert_eq!(
+            quote_if_needed("say \"hello\" and \"world\""),
+            "'say \"hello\" and \"world\"'"
+        );
+
+        // String with single quote - use double quotes
+        assert_eq!(quote_if_needed("it's fine"), "\"it's fine\"");
+
+        // String with more single quotes than double - use double quotes
+        assert_eq!(quote_if_needed("it's Bob's day"), "\"it's Bob's day\"");
+
+        // More double quotes (2) than single (1) - use single quotes with '\'' escape
+        assert_eq!(quote_if_needed("it's \"ok\""), "'it'\\''s \"ok\"'");
+
+        // Equal single and double quotes (1 each) - prefer double quotes
+        assert_eq!(quote_if_needed("it's x\""), "\"it's x\\\"\"");
+
+        // String with only backslashes - needs quoting and escaping
+        assert_eq!(quote_if_needed("path\\to\\file"), "\"path\\\\to\\\\file\"");
+
+        // String with dollar sign - quoted due to space, but $ not escaped (allow variable expansion)
+        assert_eq!(quote_if_needed("test $HOME"), "\"test $HOME\"");
+
+        // String with backtick - quoted due to space, but ` not escaped (allow command substitution)
+        assert_eq!(quote_if_needed("run `cmd`"), "\"run `cmd`\"");
+
+        // Dollar sign alone - no quoting needed
+        assert_eq!(quote_if_needed("$HOME"), "$HOME");
+
+        // Backtick alone - no quoting needed
+        assert_eq!(quote_if_needed("`cmd`"), "`cmd`");
+
+        // String with newline - needs quoting (preserved in quotes)
+        assert_eq!(quote_if_needed("line1\nline2"), "\"line1\nline2\"");
+
+        // String with tab - needs quoting (preserved in quotes)
+        assert_eq!(quote_if_needed("col1\tcol2"), "\"col1\tcol2\"");
+
+        // Single quote inside single-quoted string uses '\'' technique
+        // When we have more double quotes than single quotes, we use single quotes
+        // and escape single quotes with '\''
+        assert_eq!(
+            quote_if_needed("say \"hello\" it's \"great\""),
+            "'say \"hello\" it'\\''s \"great\"'"
+        );
+
+        // String with newline AND more double quotes - uses single quotes
+        // (single quotes can contain literal newlines)
+        assert_eq!(
+            quote_if_needed("line1\nline2 \"quoted\""),
+            "'line1\nline2 \"quoted\"'"
+        );
+
+        // String with tab AND more double quotes - uses single quotes
+        assert_eq!(
+            quote_if_needed("col1\tcol2 \"data\""),
+            "'col1\tcol2 \"data\"'"
+        );
     }
 
     #[test]
-    fn test_command_display() {
+    fn test_to_shell_string() {
         // Simple command roundtrip
         let cmd: Command = "kubectl get pods -n default".try_into().unwrap();
-        assert_eq!(cmd.to_string(), "kubectl get pods -n default");
+        assert_eq!(cmd.to_shell_string(), "kubectl get pods -n default");
 
         // Command with quoted value containing spaces
         let cmd: Command = "echo \"hello world\"".try_into().unwrap();
-        assert_eq!(cmd.to_string(), "echo \"hello world\"");
+        assert_eq!(cmd.to_shell_string(), "echo \"hello world\"");
 
         // Command with --flag=value syntax (now kept as single token)
         let cmd: Command = "docker run --name=myapp image".try_into().unwrap();
-        assert_eq!(cmd.to_string(), "docker run --name=myapp image");
+        assert_eq!(cmd.to_shell_string(), "docker run --name=myapp image");
     }
 
     #[test]
