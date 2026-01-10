@@ -1,5 +1,6 @@
 use crate::{
     command::Command,
+    editor::Editor,
     undo::{Undo, UndoAction},
 };
 use ratatui::widgets::ListState;
@@ -7,8 +8,7 @@ use ratatui::widgets::ListState;
 pub struct App {
     pub cmd: Command,
     pub list_state: ListState,
-    pub input_mode: bool,
-    pub current_input: String,
+    pub editor: Editor,
     pub undo: Undo,
     pub cursor_y: u16,
 }
@@ -18,8 +18,7 @@ impl App {
         Self {
             cmd,
             list_state: ListState::default().with_selected(Some(0)),
-            input_mode: false,
-            current_input: String::new(),
+            editor: Editor::new(),
             undo: Default::default(),
             cursor_y,
         }
@@ -198,33 +197,31 @@ impl App {
 
     pub fn start_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            self.input_mode = true;
-            self.current_input = self.cmd.component_at(selected).to_string();
+            let value = self.cmd.component_at(selected);
+            self.editor.start_input(value);
         }
     }
 
     pub fn confirm_input(&mut self) {
         if let Some(selected) = self.list_state.selected() {
-            let old_value = self.cmd.set_value_at(selected, &self.current_input);
+            let new_value = self.editor.end_input();
+            let old_value = self.cmd.set_value_at(selected, &new_value);
 
-            if old_value != self.current_input {
+            if old_value != new_value {
                 self.undo.push(
                     UndoAction::Edit {
                         position: selected,
                         original_value: old_value,
-                        updated_value: self.current_input.clone(),
+                        updated_value: new_value,
                     },
                     true,
                 );
             }
         }
-        self.input_mode = false;
-        self.current_input.clear();
     }
 
     pub fn cancel_input(&mut self) {
-        self.input_mode = false;
-        self.current_input.clear();
+        self.editor.cancel_input();
     }
 }
 
