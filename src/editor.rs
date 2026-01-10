@@ -67,13 +67,23 @@ impl Editor {
 
     pub fn move_cursor_left(&mut self) {
         if self.cursor_index > 0 {
-            self.cursor_index -= 1;
+            let text = self.content.text();
+            let mut new_idx = self.cursor_index - 1;
+            while new_idx > 0 && !text.is_char_boundary(new_idx) {
+                new_idx -= 1;
+            }
+            self.cursor_index = new_idx;
         }
     }
 
     pub fn move_cursor_right(&mut self) {
-        if self.cursor_index < self.content.len() {
-            self.cursor_index += 1;
+        let text = self.content.text();
+        if self.cursor_index < text.len() {
+            let mut new_idx = self.cursor_index + 1;
+            while new_idx < text.len() && !text.is_char_boundary(new_idx) {
+                new_idx += 1;
+            }
+            self.cursor_index = new_idx;
         }
     }
 
@@ -87,10 +97,14 @@ impl Editor {
 
     /// Delete the character at the cursor position -1 (Backspace key behavior)
     pub fn delete_backward(&mut self) {
-        let pos = self.cursor_index;
-        if pos > 0 {
-            self.content.remove(pos - 1);
-            self.cursor_index -= 1;
+        if self.cursor_index > 0 {
+            let text = self.content.text();
+            let mut prev_idx = self.cursor_index - 1;
+            while prev_idx > 0 && !text.is_char_boundary(prev_idx) {
+                prev_idx -= 1;
+            }
+            self.content.remove(prev_idx);
+            self.cursor_index = prev_idx;
         }
     }
 
@@ -98,7 +112,7 @@ impl Editor {
     pub fn input_char(&mut self, c: char) {
         let pos = self.cursor_index;
         self.content.insert(pos, c);
-        self.cursor_index += 1;
+        self.cursor_index += c.len_utf8();
     }
 
     fn clear(&mut self) {

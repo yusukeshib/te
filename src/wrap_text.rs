@@ -24,25 +24,43 @@ impl WrapText {
     }
 
     pub fn index_at_position(&self, position: [usize; 2]) -> usize {
+        use unicode_width::UnicodeWidthChar;
+
         let line_num = position[1];
-        let col_num = position[0];
+        let target_col = position[0];
+
         if line_num >= self.lines.len() {
             return self.content.len();
         }
+
         let line = &self.lines[line_num];
-        let line_length = line.end_index - line.start_index;
-        if col_num >= line_length {
-            return line.end_index;
+        let mut current_col = 0;
+        let mut byte_offset = 0;
+
+        for ch in line.content.chars() {
+            if current_col >= target_col {
+                break;
+            }
+            current_col += UnicodeWidthChar::width(ch).unwrap_or(1);
+            byte_offset += ch.len_utf8();
         }
-        line.start_index + col_num
+
+        line.start_index + byte_offset
     }
 
     pub fn position(&self, index: usize) -> [usize; 2] {
+        use unicode_width::UnicodeWidthChar;
+
         let mut line_num = 0;
         let mut col_num = 0;
         for line in &self.lines {
             if index >= line.start_index && index <= line.end_index {
-                col_num = index - line.start_index;
+                // Calculate display width of characters before the cursor
+                let byte_offset = index - line.start_index;
+                col_num = line.content[..byte_offset]
+                    .chars()
+                    .map(|c| UnicodeWidthChar::width(c).unwrap_or(1))
+                    .sum();
                 break;
             }
             line_num += 1;
