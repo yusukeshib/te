@@ -5,9 +5,11 @@ use clap::{Parser, Subcommand};
 
 mod app;
 mod command;
+mod editor;
 mod shell;
 mod tui;
 mod undo;
+mod wrap_text;
 
 use tui::run_tui;
 
