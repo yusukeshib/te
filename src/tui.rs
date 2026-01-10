@@ -166,7 +166,7 @@ fn run_app<B: ratatui::backend::Backend>(
                 let prefix = format!(" {} ", prefix_char);
 
                 if input_mode && i == selected {
-                    let wrapped_lines = app.editor.lines();
+                    let wrapped_lines = app.editor.lines().clone();
                     total_height += app.editor.content_height();
                     wrapped_data.push((prefix, wrapped_lines));
                 } else {

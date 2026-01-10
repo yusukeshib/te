@@ -45,8 +45,8 @@ impl Editor {
         self.content.height() as u16
     }
 
-    pub fn lines(&self) -> Vec<WrapTextLine> {
-        self.content.lines().clone()
+    pub fn lines(&self) -> &[WrapTextLine] {
+        self.content.lines()
     }
 
     pub fn cursor_position(&self) -> [usize; 2] {
